@@ -28,9 +28,8 @@ class SaymanWallet {
 
   async signTransaction(txData) {
     const keyPair = this.ec.keyFromPrivate(this.privateKey, 'hex');
-    
+
     // CRITICAL: Must match Transaction.calculateHash() exactly!
-    // Only hash specific fields in exact order
     const dataToHash = JSON.stringify({
       type: txData.type,
       timestamp: txData.timestamp,
@@ -39,7 +38,7 @@ class SaymanWallet {
       gasPrice: txData.gasPrice,
       nonce: txData.nonce
     });
-    
+
     const encoder = new TextEncoder();
     const data = encoder.encode(dataToHash);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
