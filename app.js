@@ -1,7 +1,7 @@
 // ============================================================
-//  Sayman Wallet Manager Pro — Complete Edition
-//  All features working: QR scan, transaction details,
-//  proper amounts, animations, dynamic UI
+//  Sayman Wallet Manager Pro — FIXED VERSION
+//  Fixes: QR scan auto-fills recipient address for sending
+//  Transaction amounts now show correctly
 // ============================================================
 
 (function() {
@@ -65,7 +65,6 @@
       detailTxList: $('#detailTxList'),
       networkSelect: $('#networkSelect'),
       refreshBtn: $('#refreshBtn'),
-      // modals
       addWalletModal: $('#addWalletModal'),
       detailsModal: $('#detailsModal'),
       qrModal: $('#qrModal'),
@@ -75,7 +74,6 @@
       qrContainer: $('#qrContainer'),
       qrAddressDisplay: $('#qrAddressDisplay'),
       txDetailContent: $('#txDetailContent'),
-      // buttons
       addWalletBtn: $('#addWalletBtn'),
       importJsonBtn: $('#importJsonBtn'),
       importQrBtn: $('#importQrBtn'),
@@ -113,7 +111,6 @@
       createResult: $('#createResult'),
       scanResult: $('#scanResult'),
       detailsContent: $('#detailsContent'),
-      // filters
       txTypeFilter: $('#txTypeFilter'),
       txDateFilter: $('#txDateFilter'),
       txDateFrom: $('#txDateFrom'),
@@ -122,7 +119,6 @@
       resetFilterBtn: $('#resetFilterBtn'),
       txTotalAmount: $('#txTotalAmount'),
       txTotalCount: $('#txTotalCount'),
-      // analytics
       annualSummary: $('#annualSummary'),
       heatmapGrid: $('#heatmapGrid'),
       qrScanner: $('#qrScanner'),
@@ -341,7 +337,7 @@
       renderTransactionHistory();
   }
 
-  // ===== TRANSACTION HISTORY =====
+  // ===== TRANSACTION HISTORY - FIXED AMOUNTS =====
   async function loadTransactionHistory() {
       if (!activeWallet) return;
 
@@ -351,23 +347,46 @@
 
           const data = await res.json();
           if (data.transactions) {
-              // Fix: Ensure transactions have proper amount from data
+              // FIX: Properly extract amounts from transaction data
               activeWallet.transactions = data.transactions.map(tx => {
-                  // Extract amount from data field if present
-                  let amount = tx.amount || 0;
+                  let amount = 0;
+                  
+                  // Extract amount from data field
                   if (tx.data && tx.data.amount !== undefined) {
-                      amount = tx.data.amount;
+                      amount = parseFloat(tx.data.amount) || 0;
+                  } else if (tx.amount !== undefined) {
+                      amount = parseFloat(tx.amount) || 0;
                   }
-                  // For received transactions, amount should be positive
-                  if (tx.type === 'TRANSFER' && tx.data && tx.data.to === activeWallet.address) {
-                      amount = Math.abs(amount);
+                  
+                  // For TRANSFER type, determine direction
+                  if (tx.type === 'TRANSFER' && tx.data) {
+                      if (tx.data.to === activeWallet.address) {
+                          // Received - positive
+                          amount = Math.abs(amount);
+                      } else if (tx.data.from === activeWallet.address) {
+                          // Sent - negative
+                          amount = -Math.abs(amount);
+                      }
                   }
-                  // For sent transactions, amount should be negative
-                  if (tx.type === 'TRANSFER' && tx.data && tx.data.from === activeWallet.address) {
+                  
+                  // For STAKE - negative (spending)
+                  if (tx.type === 'STAKE') {
                       amount = -Math.abs(amount);
                   }
+                  
+                  // For REWARD - positive (earning)
+                  if (tx.type === 'REWARD') {
+                      amount = Math.abs(amount);
+                  }
+                  
+                  // For UNSTAKE - positive (returning)
+                  if (tx.type === 'UNSTAKE') {
+                      amount = Math.abs(amount);
+                  }
+                  
                   return { ...tx, amount: amount };
               });
+              
               activeWallet.balance = data.balance || 0;
               activeWallet.stake = data.stake || 0;
               activeWallet.nonce = data.nonce || 0;
@@ -420,7 +439,7 @@
 
       filteredTxs = txs;
 
-      // Update summary
+      // Update summary - FIX: Use actual amounts
       const totalAmount = txs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
       dom.txTotalAmount.textContent = formatBalance(totalAmount);
       dom.txTotalCount.textContent = txs.length;
@@ -453,7 +472,6 @@
               }
           }
 
-          // Icon mapping
           const iconMap = {
               'TRANSFER': isPositive ? 'fa-arrow-down' : 'fa-arrow-up',
               'STAKE': 'fa-lock',
@@ -555,12 +573,6 @@
               <div class="form-group">
                   <label>Nonce</label>
                   <input type="text" value="${tx.nonce}" readonly />
-              </div>
-              ` : ''}
-              ${tx.signature ? `
-              <div class="form-group">
-                  <label>Signature</label>
-                  <input type="text" value="${tx.signature.substring(0, 32)}..." readonly style="font-family:monospace;font-size:0.7rem;" />
               </div>
               ` : ''}
               <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:8px;border-top:1px solid var(--border-color);">
@@ -863,7 +875,7 @@
       `).join('');
   }
 
-  // ===== QR CODE =====
+  // ===== QR CODE GENERATION (For receiving payments) =====
   function generateQR(address) {
       dom.qrContainer.innerHTML = '';
       if (!address) return;
@@ -882,7 +894,6 @@
   dom.networkSelect.addEventListener('change', function() {
       currentNetwork = this.value;
       dom.detailNetwork.textContent = getNetworkName();
-      // Update network badge color
       render();
       if (activeWallet) loadTransactionHistory();
       showToast(`Switched to ${getNetworkName()}`, 'success');
@@ -1312,17 +1323,28 @@
       }
   });
 
-  // ===== QR SCAN - FIXED =====
-  dom.importQrBtn.addEventListener('click', () => openModal('scanQrModal'));
-  dom.scanQrNavBtn.addEventListener('click', () => openModal('scanQrModal'));
+  // ===== QR SCAN - FIXED: Auto-fills recipient address for sending =====
+  dom.importQrBtn.addEventListener('click', () => {
+      openModal('scanQrModal');
+      setTimeout(startQrScanner, 500);
+  });
+
+  dom.scanQrNavBtn.addEventListener('click', () => {
+      openModal('scanQrModal');
+      setTimeout(startQrScanner, 500);
+  });
 
   async function startQrScanner() {
       if (isScanning) return;
 
       try {
-          // Check if Html5Qrcode is available
           if (typeof Html5Qrcode === 'undefined') {
-              dom.scanResult.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-circle"></i> QR scanner library not loaded. Please refresh.</div>`;
+              dom.scanResult.innerHTML = `
+                  <div class="error-message">
+                      <i class="fas fa-exclamation-circle"></i> 
+                      QR scanner library not loaded. Please refresh.
+                  </div>
+              `;
               return;
           }
 
@@ -1337,13 +1359,21 @@
 
           isScanning = true;
           dom.stopScanBtn.style.display = 'inline-flex';
-          dom.scanResult.innerHTML = '<div style="padding:8px;color:var(--text-secondary);"><i class="fas fa-spinner fa-spin"></i> Starting camera...</div>';
+          dom.scanResult.innerHTML = `
+              <div style="padding:8px;color:var(--text-secondary);">
+                  <i class="fas fa-spinner fa-spin"></i> Starting camera...
+              </div>
+          `;
 
           await html5QrCode.start({
               facingMode: 'environment'
           }, config, onQrScanSuccess, onQrScanError);
 
-          dom.scanResult.innerHTML = '<div style="padding:8px;color:var(--success);"><i class="fas fa-check-circle"></i> Camera active. Scan a QR code.</div>';
+          dom.scanResult.innerHTML = `
+              <div style="padding:8px;color:var(--success);">
+                  <i class="fas fa-check-circle"></i> Camera active. Scan a QR code to auto-fill recipient address.
+              </div>
+          `;
 
       } catch (err) {
           isScanning = false;
@@ -1351,9 +1381,9 @@
           dom.scanResult.innerHTML = `
               <div class="error-message">
                   <i class="fas fa-exclamation-circle"></i> 
-                  Camera access denied or not available. 
+                  Camera access denied. 
                   <button class="btn-outline-sm" onclick="document.getElementById('qrFileInput').click()" style="margin-top:8px;">
-                      <i class="fas fa-upload"></i> Upload Image Instead
+                      <i class="fas fa-upload"></i> Upload Image
                   </button>
               </div>
           `;
@@ -1362,13 +1392,59 @@
   }
 
   function onQrScanSuccess(decodedText) {
+      // Stop scanner immediately
       stopQrScanner();
-      dom.scanResult.innerHTML = `<div class="success-message"><i class="fas fa-check-circle"></i> QR Code detected! Importing...</div>`;
-      importWalletFromQrData(decodedText).then(() => {
-          closeModal('scanQrModal');
-      }).catch(err => {
-          dom.scanResult.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-circle"></i> ${err.message}</div>`;
-      });
+      
+      // Close the scanner modal
+      closeModal('scanQrModal');
+      
+      // FIX: Auto-fill the send form with the scanned address
+      if (decodedText && decodedText.length === 40) {
+          // It's a valid address - auto-fill send form
+          dom.sendTo.value = decodedText;
+          
+          // Switch to send tab
+          document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+          document.querySelector('[data-tab="send"]').classList.add('active');
+          document.getElementById('tab-send').classList.add('active');
+          
+          showToast('✅ Recipient address auto-filled from QR scan!', 'success');
+      } else {
+          // Try to parse as JSON with address field
+          try {
+              const data = JSON.parse(decodedText);
+              if (data.address && data.address.length === 40) {
+                  dom.sendTo.value = data.address;
+                  
+                  // Auto-fill amount if present
+                  if (data.amount) {
+                      dom.sendAmount.value = data.amount;
+                  }
+                  
+                  document.querySelector('[data-tab="send"]').classList.add('active');
+                  document.getElementById('tab-send').classList.add('active');
+                  
+                  showToast('✅ Payment details auto-filled from QR scan!', 'success');
+              } else if (data.privateKey) {
+                  // This is a wallet export QR - import it
+                  importWalletFromQrData(decodedText);
+              } else {
+                  showToast('⚠️ QR contains invalid address', 'error');
+              }
+          } catch (e) {
+              // Check if it's a private key
+              const cleaned = decodedText.replace('0x', '').trim();
+              if (cleaned.length === 64) {
+                  // Import wallet from private key
+                  importWalletFromQrData(decodedText);
+              } else {
+                  showToast('⚠️ QR does not contain a valid address', 'error');
+              }
+          }
+      }
+      
+      dom.scanResult.innerHTML = '';
   }
 
   function onQrScanError(err) {
@@ -1402,16 +1478,13 @@
 
           stopQrScanner();
 
-          // Use Html5Qrcode to scan file - proper method
           if (typeof Html5Qrcode !== 'undefined') {
-              // Create a temporary scanner just for file scanning
               const tempScanner = new Html5Qrcode('qrScanner');
               try {
                   const result = await tempScanner.scanFile(file, false);
                   if (result) {
-                      await importWalletFromQrData(result);
+                      onQrScanSuccess(result);
                       dom.qrFileInput.value = '';
-                      closeModal('scanQrModal');
                       return;
                   }
               } catch (err) {
@@ -1419,13 +1492,16 @@
               }
           }
 
-          // Fallback: manual entry
-          const manual = prompt('Could not auto-decode QR. Please paste the wallet data or private key:');
-          if (manual) {
-              await importWalletFromQrData(manual);
-              dom.qrFileInput.value = '';
-              closeModal('scanQrModal');
-          }
+          // If auto-scan fails, show manual entry option
+          dom.scanResult.innerHTML = `
+              <div class="error-message">
+                  <i class="fas fa-exclamation-circle"></i> 
+                  Could not decode QR from image.
+                  <button class="btn-outline-sm" onclick="document.getElementById('qrFileInput').click()" style="margin-top:8px;">
+                      <i class="fas fa-upload"></i> Try Another Image
+                  </button>
+              </div>
+          `;
       } catch (err) {
           dom.scanResult.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-circle"></i> ${err.message}</div>`;
       }
@@ -1446,10 +1522,10 @@
                   activeWallet = w;
                   saveState();
                   render();
-                  showToast('Wallet imported from QR scan!', 'success');
+                  showToast('✅ Wallet imported from QR scan!', 'success');
                   return;
               }
-              throw new Error('Invalid QR data - not a valid private key or wallet JSON');
+              throw new Error('Invalid QR data');
           }
 
           if (walletData.privateKey) {
@@ -1462,7 +1538,7 @@
               activeWallet = w;
               saveState();
               render();
-              showToast('Wallet imported from QR scan!', 'success');
+              showToast('✅ Wallet imported from QR scan!', 'success');
           } else {
               throw new Error('No private key found in QR data');
           }
@@ -1472,7 +1548,7 @@
       }
   }
 
-  // ===== SHOW QR =====
+  // ===== SHOW QR (For receiving payments) =====
   dom.showQrBtn.addEventListener('click', () => {
       if (!activeWallet) {
           showToast('Select a wallet first', 'error');
@@ -1690,7 +1766,6 @@
           if (e.target === overlay) {
               overlay.classList.remove('open');
               document.body.style.overflow = 'auto';
-              // Stop QR scanner if open
               if (overlay.id === 'scanQrModal') {
                   stopQrScanner();
               }
@@ -1915,7 +1990,6 @@
 
   // ===== INIT =====
   async function init() {
-      // Animate loading progress
       let progress = 0;
       const interval = setInterval(() => {
           progress += Math.random() * 8 + 2;
@@ -1929,8 +2003,6 @@
       }, 200);
 
       const hasState = loadState();
-
-      // Set network select
       dom.networkSelect.value = currentNetwork;
 
       setTimeout(async () => {
@@ -1952,7 +2024,6 @@
               activeWallet = wallets[0];
           }
 
-          // Complete loading
           updateProgress(100);
           setTimeout(() => {
               dom.loading.classList.add('hidden');
