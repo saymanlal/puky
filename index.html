@@ -8,8 +8,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>PUKY Wallet — SAYMAN Blockchain</title>
     <meta name="description" content="PUKY Wallet — Universal Crypto Vault for SAYMAN Blockchain. Manage, send, and stake SAYN tokens securely." />
-    <link rel="icon" type="image/jpeg" href="puky-icon.jpg" />
-    <link rel="apple-touch-icon" href="puky-icon.jpg" />
+    <link rel="icon" type="image/svg+xml" href="logo.svg" />
+    <link rel="apple-touch-icon" href="logo.svg" />
 
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -40,15 +40,15 @@
 <!-- ── LOADING SCREEN ── -->
 <div id="loadingOverlay">
     <div class="loader-wrapper">
-        <div class="loader-icon-wrap">
-            <img src="puky-icon.jpg" alt="PUKY" />
+        <div class="loader-icon-wrap" style="overflow: hidden;">
+            <img src="puky-icon.jpg" alt="PUKY" style="width: 100%; height: 100%; object-fit: cover;" />
         </div>
-        <p class="loader-title">PUKY Wallet</p>
-        <p class="loader-sub">Universal Crypto Vault</p>
-        <div class="loader-progress">
+        <p class="loader-title" style="display: none;">PUKY Wallet</p>
+        <p class="loader-sub" style="display: none;">Universal Crypto Vault • By PUKY Groups</p>
+        <div class="loader-progress" style="display: none;">
             <div class="loader-progress-bar" id="progressBar"></div>
         </div>
-        <p class="loader-percent" id="progressText">0%</p>
+        <p class="loader-percent" id="progressText" style="display: none;">0%</p>
     </div>
 </div>
 
@@ -61,7 +61,7 @@
     <!-- ── TOP NAVBAR ── -->
     <nav class="navbar">
         <div class="navbar-brand">
-            <img src="puky-icon.jpg" alt="PUKY" class="navbar-icon" />
+            <img src="logo.svg" alt="PUKY" class="navbar-icon" />
             <div>
                 <span class="navbar-title">PUKY</span>
                 <span class="navbar-subtitle">SAYMAN Blockchain</span>
@@ -391,6 +391,10 @@
                         <div>
                             <div style="font-size:0.6rem;color:var(--text-3);text-transform:uppercase;">Block</div>
                             <div style="font-size:0.82rem;font-weight:700;" id="detailBlock">0</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.6rem;color:var(--text-3);text-transform:uppercase;">Network</div>
+                            <div style="font-size:0.82rem;font-weight:700;" id="detailNetwork">—</div>
                         </div>
                     </div>
                 </div>

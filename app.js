@@ -517,8 +517,8 @@
                 loadTransactionHistory();
                 fetchBlockInfo();
                 if (window.innerWidth <= 768) {
-                    dom.sidebar.classList.remove('open');
-                    dom.mobileOverlay.classList.remove('active');
+                    dom.sidebar?.classList.remove('open');
+                    dom.mobileOverlay?.classList.remove('active');
                 }
                 showToast(`Selected: ${activeWallet ? activeWallet.name : ''}`, 'success');
             });
@@ -566,7 +566,7 @@
             dom.detailLocked.textContent = '0.00';
             dom.detailNonce.textContent = '0';
             dom.detailBlock.textContent = '0';
-            dom.detailNetwork.textContent = getNetworkName();
+            if (dom.detailNetwork) dom.detailNetwork.textContent = getNetworkName();
             dom.detailTxList.innerHTML = '<div class="empty-state"><i class="fas fa-wallet"></i><p>Select a wallet to view transactions</p></div>';
             return;
         }
@@ -602,7 +602,7 @@
 
         dom.detailNonce.textContent = w.nonce || 0;
         dom.detailBlock.textContent = currentBlock || '0';
-        dom.detailNetwork.textContent = getNetworkName();
+        if (dom.detailNetwork) dom.detailNetwork.textContent = getNetworkName();
 
         renderTransactionHistory();
     }
@@ -1381,14 +1381,14 @@
         }
     });
 
-    dom.qrPayCancelBtn.addEventListener('click', () => {
+    dom.qrPayCancelBtn?.addEventListener('click', () => {
         stopQrPayScanner();
         closeModal('qrPayModal');
     });
 
     dom.networkSelect.addEventListener('change', async function() {
         currentNetwork = this.value;
-        dom.detailNetwork.textContent = getNetworkName();
+        if (dom.detailNetwork) dom.detailNetwork.textContent = getNetworkName();
         showLoading('Switching network...');
         try {
             await fetchNetworkConfig();
@@ -2468,15 +2468,15 @@
 
     dom.walletSearch.addEventListener('input', renderWalletList);
 
-    dom.mobileMenuBtn.addEventListener('click', (e) => {
+    dom.mobileMenuBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
-        dom.sidebar.classList.toggle('open');
-        dom.mobileOverlay.classList.toggle('active');
+        dom.sidebar?.classList.toggle('open');
+        dom.mobileOverlay?.classList.toggle('active');
     });
 
-    dom.mobileOverlay.addEventListener('click', () => {
-        dom.sidebar.classList.remove('open');
-        dom.mobileOverlay.classList.remove('active');
+    dom.mobileOverlay?.addEventListener('click', () => {
+        dom.sidebar?.classList.remove('open');
+        dom.mobileOverlay?.classList.remove('active');
     });
 
     // Theme loading and toggle listener
@@ -2517,12 +2517,18 @@
 
     function openModal(id) {
         const el = document.getElementById(id);
-        if (el) el.classList.add('open');
+        if (el) {
+            el.classList.add('open');
+            el.classList.add('active');
+        }
     }
 
     function closeModal(id) {
         const el = document.getElementById(id);
-        if (el) el.classList.remove('open');
+        if (el) {
+            el.classList.remove('open');
+            el.classList.remove('active');
+        }
         if (id === 'scanQrModal') stopQrScanner();
         if (id === 'qrPayModal') stopQrPayScanner();
     }
@@ -2534,6 +2540,7 @@
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
                 overlay.classList.remove('open');
+                overlay.classList.remove('active');
                 if (overlay.id === 'scanQrModal') stopQrScanner();
                 if (overlay.id === 'qrPayModal') stopQrPayScanner();
             }
@@ -3174,46 +3181,78 @@
     }
 
     async function init() {
-        await loadWalletEnv();
-        await discoverPeersDynamically();
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += Math.random() * 8 + 2;
-            if (progress > 90) {
-                clearInterval(interval);
-                progress = 90;
-                updateProgress(progress);
-            } else {
-                updateProgress(Math.min(progress, 90));
-            }
-        }, 200);
-
-        loadState();
-        dom.networkSelect.value = currentNetwork;
-
-        setTimeout(async () => {
-            // NOTE: No demo wallet is auto-created anymore.
-            // If wallets.length === 0, the UI simply shows the
-            // empty state and the user creates/imports a real wallet.
-
-            if (!activeWallet && wallets.length > 0) {
-                activeWallet = wallets[0];
-            }
-
-            updateProgress(100);
-            setTimeout(() => {
+        // Fallback: unconditionally hide loader after 1s to prevent any stuck UI
+        setTimeout(() => {
+            if (dom.loading && dom.loading.style.display !== 'none') {
+                console.log('⏰ Loader timeout fallback triggered');
                 dom.loading.classList.add('hidden');
-            }, 400);
-
-            await fetchNetworkConfig();
-            render();
-
-            if (activeWallet) {
-                await loadTransactionHistory();
-                await fetchBlockInfo();
+                dom.loading.style.display = 'none';
             }
+        }, 1000);
 
+        // 1. Load state from localStorage immediately
+        try {
+            loadState();
+            if (dom.networkSelect) {
+                dom.networkSelect.value = currentNetwork;
+            }
+        } catch (e) {
+            console.error("Error loading state:", e);
+        }
+
+        // 2. Start progress bar immediately
+        let progress = 0;
+        try {
+            updateProgress(0);
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 20 + 15; // faster progress
+                if (progress >= 100) {
+                    clearInterval(progressInterval);
+                    progress = 100;
+                    updateProgress(100);
+                    setTimeout(() => {
+                        if (dom.loading) {
+                            dom.loading.classList.add('hidden');
+                            dom.loading.style.display = 'none'; // Ensure it doesn't block interactions
+                        }
+                    }, 100); // reduced delay
+                } else {
+                    updateProgress(Math.min(progress, 99));
+                }
+            }, 50); // faster check interval (50ms)
+        } catch (e) {
+            console.error("Error in progress loader:", e);
+            if (dom.loading) {
+                dom.loading.classList.add('hidden');
+                dom.loading.style.display = 'none';
+            }
+        }
+
+        // 3. Render cached wallet state immediately so UI is loaded
+        if (!activeWallet && wallets.length > 0) {
+            activeWallet = wallets[0];
+        }
+        render();
+
+        // 4. Run network operations in the background
+        (async () => {
+            try {
+                await loadWalletEnv();
+                await discoverPeersDynamically();
+                await fetchNetworkConfig();
+                
+                if (activeWallet) {
+                    await loadTransactionHistory();
+                    await fetchBlockInfo();
+                }
+                
+                // Re-render after network sync
+                render();
+            } catch (err) {
+                console.error("Background network sync failed:", err);
+            }
             startAutoRefresh();
+        })();
 
             // APK Update check
             async function checkForUpdates() {
@@ -3302,7 +3341,6 @@
 
             console.log('🚀 PUKY Wallet Pro v3.0 initialized');
             console.log(`📊 ${wallets.length} wallets loaded on ${getNetworkName()}`);
-        }, 600);
 
         const scanModal = document.getElementById('scanQrModal');
         const observer = new MutationObserver(() => {
