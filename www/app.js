@@ -728,77 +728,79 @@
         }
     }
 
+    // FIXED: MERGE transactions instead of replacing them
     async function loadTransactionHistory() {
         if (!activeWallet) return;
- 
+
         try {
             const res = await apiFetch(`/address/${activeWallet.address}`);
             if (!res.ok) return;
-
             const data = await res.json();
-            if (data.transactions) {
-                activeWallet.transactions = data.transactions.map(tx => {
-                    let amount = 0;
 
-                    if (tx.data && tx.data.amount !== undefined) {
-                        amount = parseFloat(tx.data.amount) || 0;
-                    } else if (tx.amount !== undefined) {
-                        amount = parseFloat(tx.amount) || 0;
-                    }
+            const serverTxs = (data.transactions || []).map(tx => {
+                let amount = 0;
 
-                    // Remap GENESIS going TO this address as FAUCET for history display
-                    if (tx.type === 'GENESIS' && tx.data && tx.data.to === activeWallet.address) {
-                        tx = { ...tx, type: 'FAUCET' };
-                    }
+                if (tx.data && tx.data.amount !== undefined) {
+                    amount = parseFloat(tx.data.amount) || 0;
+                } else if (tx.amount !== undefined) {
+                    amount = parseFloat(tx.amount) || 0;
+                }
 
-                    if (tx.type === 'TRANSFER' && tx.data) {
-                        if (tx.data.to === activeWallet.address) {
-                            amount = Math.abs(amount);
-                        } else if (tx.data.from === activeWallet.address) {
-                            amount = -Math.abs(amount);
-                        }
-                    }
+                if (tx.type === 'GENESIS' && tx.data && tx.data.to === activeWallet.address) {
+                    tx = { ...tx, type: 'FAUCET' };
+                }
 
-                    if (tx.type === 'STAKE') {
+                if (tx.type === 'TRANSFER' && tx.data) {
+                    if (tx.data.to === activeWallet.address) {
+                        amount = Math.abs(amount);
+                    } else if (tx.data.from === activeWallet.address) {
                         amount = -Math.abs(amount);
                     }
-
-                    if (tx.type === 'REWARD' || tx.type === 'FAUCET' || tx.type === 'GENESIS') {
-                        amount = Math.abs(amount);
-                    }
-
-                    if (tx.type === 'UNSTAKE') {
-                        amount = Math.abs(amount);
-                    }
-
-                    if (!tx.txId && !tx.hash) {
-                        tx.txId = tx.id || ('0x' + generateId().padStart(64, '0'));
-                    }
-
-                    if (!tx.blockNumber && !tx.block) {
-                        tx.blockNumber = tx.blockIndex || currentBlock || 0;
-                    }
-
-                    if (!tx.time) {
-                        tx.time = tx.timestamp || Date.now();
-                    }
-
-                    return { ...tx, amount: amount };
-                });
-
-                if (data.balance !== undefined) {
-                    const b = Number(data.balance);
-                    activeWallet.balance = isFinite(b) ? b : 0;
                 }
-                if (data.stake !== undefined) {
-                    activeWallet.stake = data.stake;
+
+                if (tx.type === 'STAKE') {
+                    amount = -Math.abs(amount);
                 }
-                if (data.nonce !== undefined) {
-                    activeWallet.nonce = data.nonce;
+
+                if (tx.type === 'REWARD' || tx.type === 'FAUCET' || tx.type === 'GENESIS') {
+                    amount = Math.abs(amount);
                 }
-                saveState();
-                render();
+
+                if (tx.type === 'UNSTAKE') {
+                    amount = Math.abs(amount);
+                }
+
+                return {
+                    ...tx,
+                    amount,
+                    txId: tx.txId || tx.hash || tx.id || null,
+                    blockNumber: tx.blockNumber ?? tx.block ?? tx.blockIndex ?? currentBlock ?? 0,
+                    time: tx.time || tx.timestamp || Date.now(),
+                    pending: false
+                };
+            });
+
+            // MERGE: keep any local pending tx the server hasn't indexed yet
+            const serverIds = new Set(serverTxs.map(t => t.txId));
+            const stillPending = (activeWallet.transactions || []).filter(
+                t => t.pending && !serverIds.has(t.txId)
+            );
+
+            activeWallet.transactions = [...serverTxs, ...stillPending]
+                .sort((a, b) => (a.time || 0) - (b.time || 0));
+
+            // Only trust server-confirmed balance/stake numbers
+            if (data.balance !== undefined) {
+                const b = Number(data.balance);
+                activeWallet.balance = isFinite(b) ? b : activeWallet.balance;
             }
+            if (data.stake !== undefined) activeWallet.stake = data.stake;
+            if (data.nonce !== undefined) activeWallet.nonce = data.nonce;
+            if (data.lockedAmount !== undefined) activeWallet.lockedAmount = data.lockedAmount;
+            if (data.unlockBlock !== undefined) activeWallet.lockBlock = data.unlockBlock;
+
+            saveState();
+            render();
         } catch (error) {
             console.error('Error loading transaction history:', error);
         }
@@ -1093,9 +1095,8 @@
 
     async function startQrPayScanner() {
         if (isQrPayScanning) return;
-        isQrPayScanning = true; // set immediately, synchronously — closes the race window that caused double camera feeds
+        isQrPayScanning = true;
 
-        // Defensively tear down any leftover instance before starting a fresh one
         if (qrPayScannerInstance) {
             try {
                 await qrPayScannerInstance.stop();
@@ -1121,8 +1122,7 @@
                         return;
                     }
                 } catch (permErr) {
-                    // Some WebViews (Capacitor) don't support the 'camera' permission
-                    // query name and throw a TypeError — ignore and fall through to start().
+                    // Some WebViews don't support 'camera' permission query
                 }
             }
 
@@ -1254,7 +1254,6 @@
             const multiplier = Math.pow(10, decimals);
             const baseAmount = Math.round(amount * multiplier);
 
-            // Simulating other chains transaction broadcasting
             if (activeWallet.chain !== 'sayman') {
                 showLoading('Preparing transaction...');
                 await new Promise(resolve => setTimeout(resolve, 600));
@@ -1285,7 +1284,8 @@
                     time: Date.now(),
                     txId: txHash,
                     blockNumber: currentBlock || 1,
-                    data: { from: activeWallet.address, to, amount: baseAmount }
+                    data: { from: activeWallet.address, to, amount: baseAmount },
+                    pending: true
                 });
                 saveState();
                 render();
@@ -1367,7 +1367,8 @@
                     blockNumber: currentBlock,
                     gasPrice: txData.gasPrice,
                     gasLimit: txData.gasLimit,
-                    data: { from: activeWallet.address, to, amount: baseAmount }
+                    data: { from: activeWallet.address, to, amount: baseAmount },
+                    pending: true
                 });
                 saveState();
 
@@ -1503,9 +1504,8 @@
             const wallet = new SaymanWallet(activeWallet.privateKey, activeWallet.chain);
             await wallet.initialize();
 
-            // Convert human-readable SAYN to base units (same pattern as TRANSFER)
             const dec = networkDecimals || 100_000_000;
-            const amount = Math.round(amountHuman * dec); // base units
+            const amount = Math.round(amountHuman * dec);
 
             const addressRes = await apiFetch(`/address/${wallet.address}`);
             const addressData = await addressRes.json();
@@ -1523,7 +1523,7 @@
 
             const gasLimit = gas.recommendedGasLimit || 60000;
             const gasPrice = gas.minGasPrice || 1;
-            const gasFeeBaseUnits = gasLimit * gasPrice; // base units
+            const gasFeeBaseUnits = gasLimit * gasPrice;
 
             const totalNeeded = amount + gasFeeBaseUnits;
             if (totalNeeded > (activeWallet.balance || 0)) {
@@ -1576,7 +1576,6 @@
                     </div>
                 `;
 
-                // Update local state in base units
                 activeWallet.balance = (activeWallet.balance || 0) - amount - gasFeeBaseUnits;
                 activeWallet.stake = (activeWallet.stake || 0) + amount;
                 activeWallet.transactions.push({
@@ -1588,7 +1587,8 @@
                     gasPrice: gasPrice,
                     gasLimit: gasLimit,
                     gasFee: gasFeeBaseUnits,
-                    data: { from: activeWallet.address, amount }
+                    data: { from: activeWallet.address, amount },
+                    pending: true
                 });
                 saveState();
 
@@ -1651,7 +1651,7 @@
 
             const gasLimit = gas.recommendedGasLimit || 60000;
             const gasPrice = gas.minGasPrice || 1;
-            const gasFeeBaseUnits = gasLimit * gasPrice; // base units
+            const gasFeeBaseUnits = gasLimit * gasPrice;
 
             hideLoading();
             showLoading('Signing unstake...');
@@ -1705,7 +1705,8 @@
                     gasPrice: gasPrice,
                     gasLimit: gasLimit,
                     gasFee: gasFeeBaseUnits,
-                    data: { from: activeWallet.address }
+                    data: { from: activeWallet.address },
+                    pending: true
                 });
                 saveState();
                 render();
@@ -1736,6 +1737,7 @@
         }
     });
 
+    // FIXED: Faucet - proper 1000 SAYN with server amount
     dom.claimFaucetBtn.addEventListener('click', async () => {
         if (!activeWallet) {
             showToast('Please select a wallet first', 'error');
@@ -1744,8 +1746,7 @@
 
         const chainConfig = getChainConfig(activeWallet.chain || 'sayman');
         if (!chainConfig.faucet) {
-            dom.faucetResult.innerHTML = `<div class="result-box error">Faucet not available for ${chainConfig.name} (${chainConfig.symbol})</div>`;
-            showToast(`Faucet not available for ${chainConfig.symbol}`, 'error');
+            dom.faucetResult.innerHTML = `<div class="result-box error">Faucet not available for ${chainConfig.name}</div>`;
             return;
         }
 
@@ -1755,22 +1756,24 @@
             return;
         }
 
-        try {
-            dom.faucetResult.innerHTML = '<div class="result-box info"><i class="fas fa-spinner fa-spin"></i> Requesting faucet...</div>';
+        dom.claimFaucetBtn.disabled = true;
+        dom.faucetResult.innerHTML = '<div class="result-box info"><i class="fas fa-spinner fa-spin"></i> Requesting faucet...</div>';
 
+        try {
             const res = await apiFetch(faucetUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ address: activeWallet.address })
             });
-
             const data = await res.json();
 
             if (data.success) {
-                const faucetAmount = data.amount || 100;
+                // Trust server-reported amount
+                const faucetAmount = data.amount || 1000;
                 const txHash = data.txId || '0x' + generateId().padStart(64, '0');
                 const symbol = chainConfig.symbol;
 
+                // Server should credit the wallet; we'll also optimistically update
                 activeWallet.balance = (activeWallet.balance || 0) + faucetAmount;
                 activeWallet.transactions.push({
                     type: 'FAUCET',
@@ -1778,11 +1781,11 @@
                     time: Date.now(),
                     txId: txHash,
                     blockNumber: currentBlock,
-                    data: { from: 'faucet', to: activeWallet.address, amount: faucetAmount }
+                    data: { from: 'faucet', to: activeWallet.address, amount: faucetAmount },
+                    pending: true
                 });
                 saveState();
                 render();
-                loadTransactionHistory();
 
                 dom.faucetResult.innerHTML = `
                     <div class="result-box success">
@@ -1806,6 +1809,8 @@
         } catch (error) {
             dom.faucetResult.innerHTML = `<div class="result-box error">${error.message}</div>`;
             showToast(error.message, 'error');
+        } finally {
+            dom.claimFaucetBtn.disabled = false;
         }
     });
 
@@ -3074,7 +3079,7 @@
                 saveState();
                 render();
             }
-        }, 5000); // 5 second refresh for all wallets
+        }, 5000);
     }
 
     function updateEstGasFee() {
@@ -3107,9 +3112,7 @@
         dom.sendGasLimit.addEventListener('input', updateEstGasFee);
     }
 
-    // Re-sync immediately when the app/tab regains focus — mobile OSes
-    // pause JS timers in the background, so without this the balance
-    // can sit stale for minutes after you switch back.
+    // Re-sync immediately when the app/tab regains focus
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && activeWallet) {
             loadTransactionHistory();
@@ -3245,7 +3248,7 @@
             console.error("Error loading state:", e);
         }
 
-        // 2. Start progress bar immediately (purely cosmetic — loader is CSS-hidden anyway)
+        // 2. Start progress bar immediately
         let progress = 0;
         try {
             updateProgress(0);
