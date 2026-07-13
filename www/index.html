@@ -216,8 +216,8 @@
                 <button class="btn btn-outline btn-sm" id="importAllJsonBtn">
                     <i class="fas fa-layer-group"></i> Import All
                 </button>
-                <button class="btn btn-outline btn-sm" id="importQrBtn">
-                    <i class="fas fa-qrcode"></i> Import QR
+                <button class="btn btn-outline btn-sm" id="importPrivateKeyHomeBtn">
+                    <i class="fas fa-key"></i> Import Key
                 </button>
                 <button class="btn btn-outline btn-sm" id="exportWalletBtn2">
                     <i class="fas fa-file-export"></i> Export Wallet
@@ -834,6 +834,32 @@
     </div>
 </div>
 
+<!-- Import Private Key Modal -->
+<div class="modal-overlay" id="importPrivateKeyHomeModal">
+    <div class="modal">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+            <h3><i class="fas fa-key"></i> Import Private Key</h3>
+            <button class="modal-close" data-modal="importPrivateKeyHomeModal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted mb-12"><i class="fas fa-info-circle"></i> Enter the wallet details and private key (64 hex characters):</p>
+            <div class="form-group">
+                <label><i class="fas fa-tag"></i> Wallet Name</label>
+                <input type="text" id="importPrivKeyName" placeholder="e.g. My Imported Wallet" />
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-key"></i> Private Key (hex)</label>
+                <input type="password" id="importPrivKeyInput" placeholder="64-character hex private key" style="font-family:monospace;" />
+            </div>
+            <button class="btn btn-primary w-100" id="importPrivKeyConfirmBtn" style="width: 100%; margin-top: 12px;">
+                <i class="fas fa-check"></i> Import Wallet
+            </button>
+            <div id="importPrivKeyStatus" class="mt-8"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Import JSON Modal -->
 <div class="modal-overlay" id="importJsonModal">
     <div class="modal">
@@ -915,29 +941,7 @@
         </div>
 </div>
 
-<!-- Import QR Private Key Modal -->
-<div class="modal-overlay" id="importQrKeyModal">
-    <div class="modal">
-        <div class="modal-handle"></div>
-        <div class="modal-header">
-            <h3><i class="fas fa-key"></i> Secure Import Key</h3>
-            <button class="modal-close" data-modal="importQrKeyModal"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="modal-body">
-            <p style="font-size:0.85rem;margin-bottom:12px;color:var(--text-2);">
-                Please enter the private key for <strong id="importQrWalletName"></strong> (<span id="importQrWalletAddr" style="font-family:monospace;font-size:0.75rem;word-break:break-all;"></span>) to finalize the import.
-            </p>
-            <div class="form-group">
-                <label><i class="fas fa-lock"></i> Private Key (hex)</label>
-                <input type="password" id="importQrKeyInput" placeholder="64-character hex private key" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-input);color:var(--text);margin-bottom:12px;" />
-            </div>
-            <button class="btn btn-primary w-100" id="importQrKeyConfirmBtn" style="width: 100%;">
-                <i class="fas fa-check"></i> Verify &amp; Import
-            </button>
-            <div id="importQrKeyError" class="mt-8"></div>
-        </div>
-    </div>
-</div>
+
 
 <!-- ── TAB SWITCHING SCRIPT ── -->
 <script>

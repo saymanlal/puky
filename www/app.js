@@ -209,7 +209,12 @@
         editResult: $('#editResult'),
         addWalletBtn: $('#addWalletBtn'),
         importJsonBtn: $('#importJsonBtn'),
-        importQrBtn: $('#importQrBtn'),
+        importPrivateKeyHomeBtn: $('#importPrivateKeyHomeBtn'),
+        importPrivateKeyHomeModal: $('#importPrivateKeyHomeModal'),
+        importPrivKeyName: $('#importPrivKeyName'),
+        importPrivKeyInput: $('#importPrivKeyInput'),
+        importPrivKeyConfirmBtn: $('#importPrivKeyConfirmBtn'),
+        importPrivKeyStatus: $('#importPrivKeyStatus'),
         exportAllBtn: $('#exportAllBtn'),
         exportWalletBtn: $('#exportWalletBtn'),
         showQrBtn: $('#showQrBtn'),
@@ -712,6 +717,7 @@
                 dom.detailLocked.innerHTML = `${formatBalance(w.lockedAmount)} <span class="lock-timer">${formatLockTime(lockInfo.remainingSeconds)}</span>`;
                 dom.detailLocked.style.color = 'var(--warning)';
             } else if (w.lockedAmount > 0) {
+                w.uncreditedBalance = (w.uncreditedBalance || 0) + w.lockedAmount;
                 w.balance = (w.balance || 0) + w.lockedAmount;
                 w.lockedAmount = 0;
                 w.lockBlock = null;
@@ -865,6 +871,7 @@
                     if (lockInfo && lockInfo.remaining > 0) {
                         needsUpdate = true;
                     } else if (w.lockedAmount > 0) {
+                        w.uncreditedBalance = (w.uncreditedBalance || 0) + w.lockedAmount;
                         w.balance = (w.balance || 0) + w.lockedAmount;
                         w.lockedAmount = 0;
                         w.lockBlock = null;
@@ -904,7 +911,7 @@
                 const data = await res.json();
                 currentBlock = (data.blocks && data.blocks[0] && data.blocks[0].index) || data.blockNumber || data.height || 0;
                 dom.detailBlock.textContent = currentBlock;
-                dom.stakeBlock.textContent = `Block #${currentBlock}`;
+                dom.stakeBlock.value = `Block #${currentBlock}`;
 
                 if (activeWallet && activeWallet.stake > 0) {
                     const rewardTime = calculateRewardTime(activeWallet.stake);
@@ -988,9 +995,18 @@
 
             // MERGE: keep any local pending tx the server hasn't indexed yet
             const serverIds = new Set(serverTxs.map(t => t.txId));
-            const stillPending = (activeWallet.transactions || []).filter(
-                t => t.pending && !serverIds.has(t.txId)
-            );
+            const stillPending = (activeWallet.transactions || []).filter(t => {
+                if (t.pending && !serverIds.has(t.txId)) {
+                    // Optimistic confirmation: if it was sent > 2 seconds ago, confirm it locally
+                    if (Date.now() - (t.time || 0) > 2000) {
+                        t.pending = false;
+                        t.blockNumber = currentBlock;
+                        return false;
+                    }
+                    return true;
+                }
+                return false;
+            });
 
             activeWallet.transactions = [...serverTxs, ...stillPending]
                 .sort((a, b) => (a.time || 0) - (b.time || 0));
@@ -1000,10 +1016,40 @@
             const hasPendingUnstake = stillPending.some(t => t.type === 'UNSTAKE');
             const hasPendingBalanceTx = stillPending.some(t => t.type === 'TRANSFER' || t.type === 'STAKE' || t.type === 'UNSTAKE' || t.type === 'FAUCET');
 
+            // If the server says the wallet is unstaking, update lockBlock and deduce lockedAmount if needed
+            if (data.unstaking) {
+                if (!hasPendingUnstake) {
+                    activeWallet.lockBlock = data.unlockBlock;
+                }
+                
+                let virtualStake = 0;
+                let lastUnstakedAmount = 0;
+                const sortedTxs = [...activeWallet.transactions].sort((a, b) => (a.time || 0) - (b.time || 0));
+                for (const tx of sortedTxs) {
+                    let amount = 0;
+                    if (tx.data && tx.data.amount !== undefined) {
+                        amount = parseFloat(tx.data.amount) || 0;
+                    } else if (tx.amount !== undefined) {
+                        amount = parseFloat(tx.amount) || 0;
+                    }
+                    
+                    if (tx.type === 'STAKE') {
+                        virtualStake += Math.abs(amount);
+                    } else if (tx.type === 'UNSTAKE') {
+                        lastUnstakedAmount = virtualStake;
+                        virtualStake = 0;
+                    }
+                }
+                
+                if (lastUnstakedAmount > 0 && (!activeWallet.lockedAmount || activeWallet.lockedAmount <= 0)) {
+                    activeWallet.lockedAmount = lastUnstakedAmount;
+                }
+            }
+
             if (data.balance !== undefined) {
                 const b = Number(data.balance);
                 if (!hasPendingBalanceTx) {
-                    activeWallet.balance = isFinite(b) ? b : activeWallet.balance;
+                    activeWallet.balance = isFinite(b) ? (b + (activeWallet.uncreditedBalance || 0)) : activeWallet.balance;
                 }
             }
             if (data.stake !== undefined) {
@@ -1407,12 +1453,13 @@
         } else {
             try {
                 const data = JSON.parse(decodedText);
-                if (data.address && data.address.length === 40) {
+                if (data.type === 'puky-wallet-share' || (data.address && data.address.length === 40)) {
                     dom.qrPayAddress.value = data.address;
                     if (data.amount) dom.qrPayAmount.value = data.amount;
+                    const recipientName = data.name ? `to ${data.name}` : '';
                     dom.qrPayResult.innerHTML = `
                         <div class="result-box success">
-                            <i class="fas fa-check-circle"></i> Payment details loaded!
+                            <i class="fas fa-check-circle"></i> Recipient loaded ${recipientName}!
                         </div>
                     `;
                     dom.qrPayAmount.focus();
@@ -2378,9 +2425,74 @@
         }
     });
 
-    dom.importQrBtn.addEventListener('click', () => {
-        openModal('scanQrModal');
-    });
+    if (dom.importPrivateKeyHomeBtn) {
+        dom.importPrivateKeyHomeBtn.addEventListener('click', () => {
+            if (dom.importPrivKeyName) dom.importPrivKeyName.value = '';
+            if (dom.importPrivKeyInput) dom.importPrivKeyInput.value = '';
+            if (dom.importPrivKeyStatus) dom.importPrivKeyStatus.innerHTML = '';
+            openModal('importPrivateKeyHomeModal');
+        });
+    }
+
+    if (dom.importPrivKeyConfirmBtn) {
+        dom.importPrivKeyConfirmBtn.addEventListener('click', async () => {
+            const nameInput = dom.importPrivKeyName;
+            const keyInput = dom.importPrivKeyInput;
+            const errorEl = dom.importPrivKeyStatus;
+            if (!keyInput || !nameInput || !errorEl) return;
+
+            const name = nameInput.value.trim() || 'Imported Wallet';
+            const privateKey = keyInput.value.trim().replace('0x', '');
+            if (privateKey.length !== 64) {
+                errorEl.innerHTML = `<div class="result-box error"><i class="fas fa-exclamation-circle"></i> Private key must be a 64-character hex string.</div>`;
+                return;
+            }
+
+            errorEl.innerHTML = `<div class="result-box info"><i class="fas fa-spinner fa-spin"></i> Importing...</div>`;
+
+            try {
+                const chain = 'sayman';
+                const wallet = new SaymanWallet(privateKey, chain);
+                await wallet.initialize();
+
+                // Check duplicate
+                if (wallets.some(ex => ex.address.toLowerCase() === wallet.address.toLowerCase())) {
+                    errorEl.innerHTML = `<div class="result-box error"><i class="fas fa-exclamation-circle"></i> Wallet already exists.</div>`;
+                    return;
+                }
+
+                const w = {
+                    id: generateId(),
+                    name: name,
+                    privateKey: wallet.privateKey,
+                    publicKey: wallet.publicKey,
+                    address: wallet.address,
+                    balance: 0,
+                    stake: 0,
+                    lockedAmount: 0,
+                    lockBlock: null,
+                    transactions: [],
+                    chain: chain,
+                    createdAt: Date.now(),
+                    networkType: getNetworkType()
+                };
+
+                wallets.push(w);
+                activeWallet = w;
+                saveState();
+                render();
+                
+                closeModal('importPrivateKeyHomeModal');
+                showToast('Wallet imported successfully!', 'success');
+                nameInput.value = '';
+                keyInput.value = '';
+                errorEl.innerHTML = '';
+                fetchBlockInfo();
+            } catch (err) {
+                errorEl.innerHTML = `<div class="result-box error"><i class="fas fa-exclamation-circle"></i> ${err.message}</div>`;
+            }
+        });
+    }
 
     dom.scanQrNavBtn.addEventListener('click', () => {
         openModal('qrPayModal');
@@ -2497,7 +2609,14 @@
             try {
                 const data = JSON.parse(decodedText);
                 if (data.type === 'puky-wallet-share') {
-                    openImportQrKeyModal(data);
+                    openModal('qrPayModal');
+                    dom.qrPayAddress.value = data.address;
+                    dom.qrPayResult.innerHTML = `
+                        <div class="result-box success">
+                            <i class="fas fa-check-circle"></i> Profile detected! Enter amount to send to ${data.name || 'recipient'}.
+                        </div>
+                    `;
+                    dom.qrPayAmount.focus();
                 } else if (data.address && data.address.length === 40) {
                     openModal('qrPayModal');
                     dom.qrPayAddress.value = data.address;
