@@ -1,6 +1,6 @@
 {
   "appId": "com.krushn.pukywallet",
-  "appName": "PUKY Wallet",
+  "appName": "PUKY-Wallet",
   "webDir": "www",
   "bundledWebRuntime": false,
   "server": {

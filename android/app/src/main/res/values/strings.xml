@@ -1,5 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">PUKY Wallet</string>
-    <string name="title_activity_main">PUKY Wallet</string>
-    <string name="custom_url_scheme">puky</string>
+    <string name="app_name">PUKY-Wallet</string>
+    <string name="title_activity_main">PUKY-Wallet</string>
+    <string name="package_name">com.krushn.pukywallet</string>
+    <string name="custom_url_scheme">com.krushn.pukywallet</string>
 </resources>

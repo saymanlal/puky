@@ -1,0 +1,241 @@
+==> 1. Selecting JDK 23 (confirmed full JDK on this system)
+Using: openjdk version "23.0.1" 2024-10-15
+javac: javac 23.0.1
+==> 2. Generate persistent release keystore (only if it doesn't already exist)
+Generating 2,048 bit RSA key pair and self-signed certificate (SHA384withRSA) with a validity of 10,000 days
+	for: CN=PukyWallet, OU=Dev, O=Krushn, L=City, ST=State, C=IN
+[Storing /home/krushn/wallet-manager/release-key.jks]
+✅ New keystore created at /home/krushn/wallet-manager/release-key.jks — back this file up, it must stay the same forever.
+==> 3. Clean slate for the Capacitor/Android project (keystore is OUTSIDE android/, so it survives)
+==> 4. Copy web assets
+==> 5. Init Capacitor + Android platform
+✔ Creating capacitor.config.json in /home/krushn/wallet-manager in 4.08ms
+[success] capacitor.config.json created!
+
+Next steps: 
+https://capacitorjs.com/docs/getting-started#where-to-go-next
+✔ Adding native android project in android in 81.64ms
+✔ add in 82.17ms
+✔ Copying web assets from www to android/app/src/main/assets/public in 13.09ms
+✔ Creating capacitor.config.json in android/app/src/main/assets in 670.32μs
+✔ copy android in 19.86ms
+✔ Updating Android plugins in 655.93μs
+✔ update android in 66.37ms
+✔ Syncing Gradle in 122.27μs
+[success] android platform added!
+Follow the Developer Workflow guide to get building:
+https://capacitorjs.com/docs/basics/workflow
+✔ Copying web assets from www to android/app/src/main/assets/public in 14.77ms
+✔ Creating capacitor.config.json in android/app/src/main/assets in 877.14μs
+✔ copy android in 20.96ms
+✔ Updating Android plugins in 266.41μs
+✔ update android in 21.35ms
+[info] Sync finished in 0.051s
+==> 6. Patch variables.gradle for Android 15 (API 35)
+variables.gradle patched:
+    minSdkVersion = 23
+    compileSdkVersion = 35
+    targetSdkVersion = 35
+==> 7. Pin app source/target Java compatibility to 17 (what AGP actually needs, regardless of host JDK)
+==> 8. Fix Kotlin stdlib duplicate-class conflict
+✅ Added Kotlin stdlib exclusions.
+==> 9. Add persistent release signing config
+✅ Release signing config wired in.
+==> 10. Force gradle to use JDK 23
+==> 11. Clean build
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :app
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-cordova-android-plugins
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Task :clean UP-TO-DATE
+> Task :app:clean
+> Task :capacitor-android:clean
+> Task :capacitor-cordova-android-plugins:clean UP-TO-DATE
+
+BUILD SUCCESSFUL in 49s
+4 actionable tasks: 2 executed, 2 up-to-date
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :app
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-cordova-android-plugins
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :capacitor-android:preBuild UP-TO-DATE
+> Task :capacitor-android:preReleaseBuild UP-TO-DATE
+> Task :app:javaPreCompileRelease
+> Task :capacitor-cordova-android-plugins:preBuild UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:preReleaseBuild UP-TO-DATE
+> Task :app:generateReleaseResValues
+> Task :capacitor-android:generateReleaseResValues
+> Task :capacitor-android:generateReleaseResources
+> Task :capacitor-android:writeReleaseAarMetadata
+> Task :capacitor-cordova-android-plugins:writeReleaseAarMetadata
+> Task :capacitor-android:packageReleaseResources
+> Task :capacitor-cordova-android-plugins:generateReleaseResValues
+> Task :capacitor-cordova-android-plugins:generateReleaseResources
+> Task :app:checkReleaseAarMetadata
+> Task :capacitor-cordova-android-plugins:packageReleaseResources
+> Task :app:mapReleaseSourceSetPaths
+> Task :app:generateReleaseResources
+> Task :app:packageReleaseResources
+> Task :app:createReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksRelease
+> Task :capacitor-android:extractDeepLinksRelease
+> Task :capacitor-cordova-android-plugins:extractDeepLinksRelease
+> Task :capacitor-android:compileReleaseLibraryResources
+> Task :capacitor-cordova-android-plugins:compileReleaseLibraryResources
+> Task :app:mergeReleaseResources
+> Task :capacitor-android:javaPreCompileRelease
+> Task :capacitor-cordova-android-plugins:javaPreCompileRelease
+> Task :app:extractProguardFiles
+> Task :capacitor-cordova-android-plugins:parseReleaseLocalResources
+> Task :capacitor-android:processReleaseJavaRes NO-SOURCE
+> Task :capacitor-android:extractProguardFiles
+> Task :capacitor-android:prepareLintJarForPublish
+> Task :capacitor-cordova-android-plugins:processReleaseJavaRes NO-SOURCE
+> Task :capacitor-cordova-android-plugins:extractProguardFiles
+> Task :capacitor-android:parseReleaseLocalResources
+> Task :app:parseReleaseLocalResources
+> Task :capacitor-cordova-android-plugins:prepareLintJarForPublish
+> Task :capacitor-android:processReleaseManifest
+> Task :capacitor-cordova-android-plugins:processReleaseManifest
+> Task :capacitor-android:mergeReleaseJniLibFolders
+> Task :capacitor-android:generateReleaseRFile
+> Task :capacitor-cordova-android-plugins:generateReleaseRFile
+> Task :app:processReleaseMainManifest
+> Task :app:processReleaseManifest
+
+> Task :capacitor-android:compileReleaseJavaWithJavac
+Note: Some input files use unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+
+> Task :app:processReleaseManifestForPackage
+> Task :capacitor-android:bundleLibCompileToJarRelease
+> Task :capacitor-cordova-android-plugins:compileReleaseJavaWithJavac NO-SOURCE
+> Task :capacitor-cordova-android-plugins:bundleLibCompileToJarRelease
+> Task :capacitor-android:bundleLibRuntimeToJarRelease
+> Task :app:processReleaseResources
+> Task :capacitor-android:generateReleaseLintModel
+> Task :app:compileReleaseJavaWithJavac
+> Task :capacitor-android:createFullJarRelease
+> Task :capacitor-cordova-android-plugins:bundleLibRuntimeToJarRelease
+> Task :capacitor-cordova-android-plugins:generateReleaseLintModel
+> Task :capacitor-cordova-android-plugins:createFullJarRelease
+> Task :app:generateReleaseLintVitalReportModel
+> Task :capacitor-android:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-android:stripReleaseDebugSymbols NO-SOURCE
+> Task :capacitor-android:extractDeepLinksForAarRelease
+> Task :capacitor-android:copyReleaseJniLibsProjectAndLocalJars
+> Task :capacitor-android:extractReleaseAnnotations
+> Task :capacitor-android:mergeReleaseGeneratedProguardFiles
+> Task :capacitor-android:mergeReleaseConsumerProguardFiles
+> Task :capacitor-android:mergeReleaseShaders
+> Task :capacitor-android:compileReleaseShaders NO-SOURCE
+> Task :capacitor-android:generateReleaseAssets UP-TO-DATE
+> Task :capacitor-android:packageReleaseAssets
+> Task :capacitor-android:prepareReleaseArtProfile
+> Task :capacitor-cordova-android-plugins:mergeReleaseJniLibFolders
+> Task :capacitor-cordova-android-plugins:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-cordova-android-plugins:stripReleaseDebugSymbols NO-SOURCE
+> Task :capacitor-cordova-android-plugins:copyReleaseJniLibsProjectAndLocalJars
+> Task :capacitor-cordova-android-plugins:extractDeepLinksForAarRelease
+> Task :capacitor-cordova-android-plugins:extractReleaseAnnotations
+> Task :capacitor-cordova-android-plugins:mergeReleaseGeneratedProguardFiles
+> Task :capacitor-cordova-android-plugins:mergeReleaseConsumerProguardFiles
+> Task :capacitor-cordova-android-plugins:mergeReleaseShaders
+> Task :capacitor-cordova-android-plugins:compileReleaseShaders NO-SOURCE
+> Task :capacitor-cordova-android-plugins:generateReleaseAssets UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:packageReleaseAssets
+> Task :capacitor-cordova-android-plugins:prepareReleaseArtProfile
+> Task :capacitor-android:writeReleaseLintModelMetadata
+> Task :capacitor-android:mergeReleaseJavaResource
+> Task :capacitor-cordova-android-plugins:mergeReleaseJavaResource
+> Task :capacitor-android:syncReleaseLibJars
+> Task :capacitor-android:bundleReleaseLocalLintAar
+> Task :capacitor-cordova-android-plugins:syncReleaseLibJars
+> Task :capacitor-cordova-android-plugins:bundleReleaseLocalLintAar
+> Task :capacitor-cordova-android-plugins:writeReleaseLintModelMetadata
+> Task :capacitor-android:generateReleaseLintVitalModel
+> Task :capacitor-cordova-android-plugins:generateReleaseLintVitalModel
+> Task :app:mergeReleaseJniLibFolders
+> Task :capacitor-android:copyReleaseJniLibsProjectOnly
+> Task :capacitor-cordova-android-plugins:copyReleaseJniLibsProjectOnly
+> Task :app:checkReleaseDuplicateClasses
+> Task :app:mergeReleaseNativeLibs NO-SOURCE
+> Task :app:stripReleaseDebugSymbols NO-SOURCE
+> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
+> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:dexBuilderRelease
+> Task :app:desugarReleaseFileDependencies
+> Task :app:mergeReleaseStartupProfile
+> Task :capacitor-cordova-android-plugins:lintVitalAnalyzeRelease
+> Task :capacitor-android:lintVitalAnalyzeRelease
+> Task :app:mergeReleaseShaders
+> Task :app:compileReleaseShaders NO-SOURCE
+> Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:mergeReleaseAssets
+> Task :app:mergeReleaseArtProfile
+> Task :app:compressReleaseAssets
+> Task :app:mergeReleaseGlobalSynthetics
+> Task :app:lintVitalAnalyzeRelease
+> Task :app:extractReleaseVersionControlInfo
+> Task :app:processReleaseJavaRes NO-SOURCE
+> Task :app:lintVitalReportRelease
+> Task :app:lintVitalRelease
+> Task :app:mergeExtDexRelease
+> Task :app:collectReleaseDependencies
+> Task :app:mergeReleaseJavaResource
+> Task :app:sdkReleaseDependencyData
+> Task :app:validateSigningRelease
+> Task :app:writeReleaseAppMetadata
+> Task :app:writeReleaseSigningConfigVersions
+> Task :capacitor-android:bundleReleaseAar
+> Task :capacitor-android:mapReleaseSourceSetPaths
+> Task :app:mergeDexRelease
+> Task :capacitor-android:mergeReleaseResources
+> Task :capacitor-cordova-android-plugins:bundleReleaseAar
+> Task :capacitor-cordova-android-plugins:mapReleaseSourceSetPaths
+> Task :capacitor-cordova-android-plugins:mergeReleaseResources
+> Task :app:optimizeReleaseResources
+> Task :app:compileReleaseArtProfile
+> Task :capacitor-android:verifyReleaseResources
+> Task :capacitor-cordova-android-plugins:verifyReleaseResources
+> Task :capacitor-android:assembleRelease
+> Task :capacitor-cordova-android-plugins:assembleRelease
+> Task :app:packageRelease
+> Task :app:createReleaseApkListingFileRedirect
+> Task :app:assembleRelease
+[Incubating] Problems report is available at: file:///home/krushn/wallet-manager/android/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 2m 8s
+116 actionable tasks: 116 executed
+==> 12. Copy + verify APK integrity BEFORE touching the device
+==> 13. Verify the APK is a valid, uncorrupted, SIGNED zip
+apk/puky.apk: Android package (APK), with gradle app-metadata.properties, with APK Signing Block
+✅ APK is a valid, signed zip archive.
+==> 14. Write version.json with SHA256 fingerprints for verification
+✅ version.json written:
+{
+  "appId": "com.krushn.pukywallet",
+  "appName": "PUKY-Wallet",
+  "buildDate": "2026-07-13T07:28:06Z",
+  "targetSdk": 35,
+  "compileSdk": 35,
+  "jdkUsed": "23",
+  "apkFile": "puky.apk",
+  "apkSha256": "1544e516264c2c3b3090a263dd48e159f51c9ee2c9730645fbf3c1b0a5bf3204",
+  "signingCertSha256": "09:28:5E:F2:D2:46:4A:01:6A:20:57:66:49:55:03:C1:15:81:09:32:58:91:10:CE:9D:F1:BC:39:4D:25:1B:15",
+  "keystoreAlias": "pukyrelease"
+}
+==> 15. Install (uninstall any old differently-signed build first, to prevent 'package invalid')
+adb: no devices/emulators found
