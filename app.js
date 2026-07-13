@@ -741,37 +741,41 @@
     let profileQrInstance = null;
 
     function updateReceiveTab(w) {
-        const noWalletMsg = document.getElementById('receiveNoWalletMsg');
-        const walletContent = document.getElementById('receiveWalletContent');
-        const receiveAddressEl = document.getElementById('receiveAddress');
-        const qrContainer = document.getElementById('qrReceiveContainer');
+        try {
+            const noWalletMsg = document.getElementById('receiveNoWalletMsg');
+            const walletContent = document.getElementById('receiveWalletContent');
+            const receiveAddressEl = document.getElementById('receiveAddress');
+            const qrContainer = document.getElementById('qrReceiveContainer');
 
-        if (!w) {
-            if (noWalletMsg) noWalletMsg.style.display = '';
-            if (walletContent) walletContent.style.display = 'none';
-            return;
-        }
+            if (!w || !w.address) {
+                if (noWalletMsg) noWalletMsg.style.display = '';
+                if (walletContent) walletContent.style.display = 'none';
+                return;
+            }
 
-        if (noWalletMsg) noWalletMsg.style.display = 'none';
-        if (walletContent) walletContent.style.display = '';
+            if (noWalletMsg) noWalletMsg.style.display = 'none';
+            if (walletContent) walletContent.style.display = '';
 
-        const displayAddress = getAddressForChain(w.address, w.chain);
-        if (receiveAddressEl) receiveAddressEl.textContent = displayAddress;
+            const displayAddress = getAddressForChain(w.address, w.chain);
+            if (receiveAddressEl) receiveAddressEl.textContent = displayAddress;
 
-        // Generate receive QR
-        if (qrContainer) {
-            qrContainer.innerHTML = '';
-            if (receiveQrInstance) { try { receiveQrInstance.clear(); } catch(e){} }
-            try {
-                receiveQrInstance = new QRCode(qrContainer, {
-                    text: w.address,
-                    width: 180,
-                    height: 180,
-                    colorDark: '#000000',
-                    colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.H,
-                });
-            } catch(e) { console.warn('Receive QR gen failed:', e); }
+            // Generate receive QR
+            if (qrContainer) {
+                qrContainer.innerHTML = '';
+                if (receiveQrInstance) { try { receiveQrInstance.clear(); } catch(e){} }
+                try {
+                    receiveQrInstance = new QRCode(qrContainer, {
+                        text: w.address,
+                        width: 180,
+                        height: 180,
+                        colorDark: '#000000',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.H,
+                    });
+                } catch(e) { console.warn('Receive QR gen failed:', e); }
+            }
+        } catch (err) {
+            console.error('Error in updateReceiveTab:', err);
         }
     }
 
@@ -781,24 +785,59 @@
         const addressEl = document.getElementById('profileQrAddress');
         const containerEl = document.getElementById('profileQrContainer');
 
+        const detailsNoWalletEl = document.getElementById('profileDetailsNoWallet');
+        const detailsContentEl = document.getElementById('profileDetailsContent');
+        const detailNameEl = document.getElementById('profileDetailName');
+        const detailChainEl = document.getElementById('profileDetailChain');
+        const detailAddrEl = document.getElementById('profileDetailAddr');
+        const detailPubEl = document.getElementById('profileDetailPub');
+        const detailPrivEl = document.getElementById('profileDetailPriv');
+
         if (!w) {
             if (noWalletEl) noWalletEl.style.display = '';
             if (contentEl) contentEl.style.display = 'none';
+            if (detailsNoWalletEl) detailsNoWalletEl.style.display = '';
+            if (detailsContentEl) detailsContentEl.style.display = 'none';
             return;
         }
 
         if (noWalletEl) noWalletEl.style.display = 'none';
         if (contentEl) contentEl.style.display = '';
+        if (detailsNoWalletEl) detailsNoWalletEl.style.display = 'none';
+        if (detailsContentEl) detailsContentEl.style.display = '';
 
         const displayAddress = getAddressForChain(w.address, w.chain);
         if (addressEl) addressEl.textContent = displayAddress;
+
+        // Render details securely
+        if (detailNameEl) detailNameEl.textContent = w.name;
+        if (detailChainEl) detailChainEl.textContent = w.chain;
+        if (detailAddrEl) detailAddrEl.textContent = displayAddress;
+        if (detailPubEl) detailPubEl.textContent = w.publicKey || 'N/A';
+        
+        // Mask private key by default
+        if (detailPrivEl) {
+            detailPrivEl.textContent = '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••';
+            detailPrivEl.dataset.revealed = 'false';
+            const toggleBtn = document.getElementById('toggleProfileDetailPriv');
+            if (toggleBtn) {
+                toggleBtn.innerHTML = '<i class="fas fa-eye"></i>';
+            }
+        }
 
         if (containerEl) {
             containerEl.innerHTML = '';
             if (profileQrInstance) { try { profileQrInstance.clear(); } catch(e){} }
             try {
+                // Securely encode metadata (no private key)
+                const sharePayload = JSON.stringify({
+                    type: 'puky-wallet-share',
+                    address: w.address,
+                    name: w.name,
+                    chain: w.chain
+                });
                 profileQrInstance = new QRCode(containerEl, {
-                    text: w.address,
+                    text: sharePayload,
                     width: 180,
                     height: 180,
                     colorDark: '#000000',
@@ -2197,6 +2236,47 @@
     const profileScanImportBtn = document.getElementById('profileScanImportBtn');
     if (profileScanImportBtn) profileScanImportBtn.addEventListener('click', () => openModal('scanQrModal'));
 
+    // Toggle profile details private key visibility
+    const toggleProfileDetailPriv = document.getElementById('toggleProfileDetailPriv');
+    if (toggleProfileDetailPriv) {
+        toggleProfileDetailPriv.addEventListener('click', () => {
+            const detailPrivEl = document.getElementById('profileDetailPriv');
+            if (!detailPrivEl || !activeWallet) return;
+            const isRevealed = detailPrivEl.dataset.revealed === 'true';
+            if (isRevealed) {
+                detailPrivEl.textContent = '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••';
+                detailPrivEl.dataset.revealed = 'false';
+                toggleProfileDetailPriv.innerHTML = '<i class="fas fa-eye"></i>';
+            } else {
+                detailPrivEl.textContent = activeWallet.privateKey;
+                detailPrivEl.dataset.revealed = 'true';
+                toggleProfileDetailPriv.innerHTML = '<i class="fas fa-eye-slash"></i>';
+            }
+        });
+    }
+
+    // Copy profile details buttons
+    const copyProfileDetailAddr = document.getElementById('copyProfileDetailAddr');
+    if (copyProfileDetailAddr) {
+        copyProfileDetailAddr.addEventListener('click', () => {
+            if (activeWallet) copyToClipboard(activeWallet.address, 'Address copied!');
+        });
+    }
+
+    const copyProfileDetailPub = document.getElementById('copyProfileDetailPub');
+    if (copyProfileDetailPub) {
+        copyProfileDetailPub.addEventListener('click', () => {
+            if (activeWallet && activeWallet.publicKey) copyToClipboard(activeWallet.publicKey, 'Public key copied!');
+        });
+    }
+
+    const copyProfileDetailPriv = document.getElementById('copyProfileDetailPriv');
+    if (copyProfileDetailPriv) {
+        copyProfileDetailPriv.addEventListener('click', () => {
+            if (activeWallet && activeWallet.privateKey) copyToClipboard(activeWallet.privateKey, 'Private key copied!');
+        });
+    }
+
     dom.importJsonConfirmBtn.addEventListener('click', async () => {
         const file = dom.jsonFileInput.files[0];
         const pastedText = dom.jsonPasteInput ? dom.jsonPasteInput.value.trim() : '';
@@ -2398,7 +2478,9 @@
         } else {
             try {
                 const data = JSON.parse(decodedText);
-                if (data.address && data.address.length === 40) {
+                if (data.type === 'puky-wallet-share') {
+                    openImportQrKeyModal(data);
+                } else if (data.address && data.address.length === 40) {
                     openModal('qrPayModal');
                     dom.qrPayAddress.value = data.address;
                     if (data.amount) dom.qrPayAmount.value = data.amount;
@@ -2526,6 +2608,79 @@
             showToast('Failed to import wallet: ' + err.message, 'error');
             throw err;
         }
+    }
+
+    let pendingImportData = null;
+
+    function openImportQrKeyModal(data) {
+        pendingImportData = data;
+        const modal = document.getElementById('importQrKeyModal');
+        const nameEl = document.getElementById('importQrWalletName');
+        const addrEl = document.getElementById('importQrWalletAddr');
+        const keyInput = document.getElementById('importQrKeyInput');
+        const errorEl = document.getElementById('importQrKeyError');
+
+        if (nameEl) nameEl.textContent = data.name || 'Unnamed Wallet';
+        if (addrEl) addrEl.textContent = getAddressForChain(data.address, data.chain);
+        if (keyInput) keyInput.value = '';
+        if (errorEl) errorEl.innerHTML = '';
+
+        openModal('importQrKeyModal');
+    }
+
+    const importQrKeyConfirmBtn = document.getElementById('importQrKeyConfirmBtn');
+    if (importQrKeyConfirmBtn) {
+        importQrKeyConfirmBtn.addEventListener('click', async () => {
+            const keyInput = document.getElementById('importQrKeyInput');
+            const errorEl = document.getElementById('importQrKeyError');
+            if (!keyInput || !pendingImportData) return;
+
+            const privateKey = keyInput.value.trim().replace('0x', '');
+            if (privateKey.length !== 64) {
+                if (errorEl) errorEl.innerHTML = `<div class="result-box error"><i class="fas fa-exclamation-circle"></i> Private key must be a 64-character hex string.</div>`;
+                return;
+            }
+
+            if (errorEl) errorEl.innerHTML = `<div class="result-box info"><i class="fas fa-spinner fa-spin"></i> Verifying private key...</div>`;
+
+            try {
+                // Instantiate to verify key
+                const wallet = new SaymanWallet(privateKey, pendingImportData.chain);
+                await wallet.initialize();
+                
+                if (wallet.address.toLowerCase() !== pendingImportData.address.toLowerCase()) {
+                    if (errorEl) errorEl.innerHTML = `<div class="result-box error"><i class="fas fa-exclamation-circle"></i> Private key does not match this wallet's address.</div>`;
+                    return;
+                }
+
+                const w = {
+                    id: generateId(),
+                    name: pendingImportData.name || 'Imported Wallet',
+                    privateKey: wallet.privateKey,
+                    publicKey: wallet.publicKey,
+                    address: wallet.address,
+                    balance: 0,
+                    stake: 0,
+                    lockedAmount: 0,
+                    lockBlock: null,
+                    transactions: [],
+                    chain: pendingImportData.chain || 'sayman',
+                    createdAt: Date.now(),
+                    networkType: getNetworkType()
+                };
+
+                wallets.push(w);
+                activeWallet = w;
+                saveState();
+                render();
+                
+                closeModal('importQrKeyModal');
+                showToast('Wallet imported securely!', 'success');
+                pendingImportData = null;
+            } catch (err) {
+                if (errorEl) errorEl.innerHTML = `<div class="result-box error"><i class="fas fa-exclamation-circle"></i> ${err.message}</div>`;
+            }
+        });
     }
 
     dom.showQrBtn.addEventListener('click', () => {

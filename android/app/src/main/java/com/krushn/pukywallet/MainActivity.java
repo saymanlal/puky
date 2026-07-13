@@ -3,9 +3,6 @@ package com.krushn.pukywallet;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.webkit.PermissionRequest;
-import android.webkit.WebChromeClient;
-import android.webkit.WebView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
@@ -23,27 +20,6 @@ public class MainActivity extends BridgeActivity {
             ActivityCompat.requestPermissions(this,
                 new String[]{Manifest.permission.CAMERA},
                 CAMERA_PERMISSION_REQUEST);
-        }
-
-        // Override WebChromeClient to handle camera permission requests from web
-        WebView webView = getBridge().getWebView();
-        if (webView != null) {
-            webView.setWebChromeClient(new WebChromeClient() {
-                @Override
-                public void onPermissionRequest(final PermissionRequest request) {
-                    runOnUiThread(() -> {
-                        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
-                                == PackageManager.PERMISSION_GRANTED) {
-                            request.grant(request.getResources());
-                        } else {
-                            ActivityCompat.requestPermissions(MainActivity.this,
-                                new String[]{Manifest.permission.CAMERA},
-                                CAMERA_PERMISSION_REQUEST);
-                            request.grant(request.getResources());
-                        }
-                    });
-                }
-            });
         }
     }
 

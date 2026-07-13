@@ -61,6 +61,8 @@ npx cap sync android
 echo "==> 5b. Patch AndroidManifest.xml with permissions"
 MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
 if [ -f "$MANIFEST_PATH" ]; then
+    # Enable cleartext traffic
+    sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' "$MANIFEST_PATH"
     # Remove existing closing manifest tag to append permissions and re-close
     sed -i 's/<\/manifest>//g' "$MANIFEST_PATH"
     cat >> "$MANIFEST_PATH" << 'EOF'
@@ -84,9 +86,6 @@ package com.krushn.pukywallet;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.webkit.PermissionRequest;
-import android.webkit.WebChromeClient;
-import android.webkit.WebView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
@@ -105,27 +104,6 @@ public class MainActivity extends BridgeActivity {
                 new String[]{Manifest.permission.CAMERA},
                 CAMERA_PERMISSION_REQUEST);
         }
-
-        // Override WebChromeClient to handle camera permission requests from web
-        WebView webView = getBridge().getWebView();
-        if (webView != null) {
-            webView.setWebChromeClient(new WebChromeClient() {
-                @Override
-                public void onPermissionRequest(final PermissionRequest request) {
-                    runOnUiThread(() -> {
-                        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
-                                == PackageManager.PERMISSION_GRANTED) {
-                            request.grant(request.getResources());
-                        } else {
-                            ActivityCompat.requestPermissions(MainActivity.this,
-                                new String[]{Manifest.permission.CAMERA},
-                                CAMERA_PERMISSION_REQUEST);
-                            request.grant(request.getResources());
-                        }
-                    });
-                }
-            });
-        }
     }
 
     @Override
@@ -139,7 +117,7 @@ public class MainActivity extends BridgeActivity {
     }
 }
 JAVAEOF
-echo "✅ MainActivity.java patched with camera permission + WebChromeClient override"
+echo "✅ MainActivity.java patched with camera permission"
 
 echo "==> 5d. Run generate_icons.sh to generate launcher icons"
 bash generate_icons.sh

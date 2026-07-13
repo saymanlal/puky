@@ -538,6 +538,49 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Selected Wallet Details (Secure) -->
+            <p class="section-title mt-16">Selected Wallet Details</p>
+            <div class="card" id="profileWalletDetailsCard" style="padding:20px;">
+                <div id="profileDetailsNoWallet" style="text-align:center;padding:16px;">
+                    <i class="fas fa-info-circle" style="font-size:2rem;color:var(--text-3);margin-bottom:8px;display:block;"></i>
+                    <p class="text-muted">Select a wallet to view secure details</p>
+                </div>
+                <div id="profileDetailsContent" style="display:none;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:8px;">
+                        <span class="text-muted" style="font-size:0.85rem;">Name</span>
+                        <strong id="profileDetailName" style="font-size:0.9rem;">-</strong>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:8px;">
+                        <span class="text-muted" style="font-size:0.85rem;">Chain</span>
+                        <strong id="profileDetailChain" style="font-size:0.9rem;text-transform:capitalize;">-</strong>
+                    </div>
+                    <div style="margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:8px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                            <span class="text-muted" style="font-size:0.85rem;">Address</span>
+                            <button class="copy-btn" id="copyProfileDetailAddr" style="background:none;border:none;color:var(--accent);cursor:pointer;" title="Copy Address"><i class="fas fa-copy"></i></button>
+                        </div>
+                        <div id="profileDetailAddr" style="font-family:monospace;font-size:0.75rem;word-break:break-all;color:var(--text-1);"></div>
+                    </div>
+                    <div style="margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:8px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                            <span class="text-muted" style="font-size:0.85rem;">Public Key</span>
+                            <button class="copy-btn" id="copyProfileDetailPub" style="background:none;border:none;color:var(--accent);cursor:pointer;" title="Copy Public Key"><i class="fas fa-copy"></i></button>
+                        </div>
+                        <div id="profileDetailPub" style="font-family:monospace;font-size:0.75rem;word-break:break-all;color:var(--text-1);">-</div>
+                    </div>
+                    <div style="margin-bottom:8px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                            <span class="text-muted" style="font-size:0.85rem;">Private Key (Secure)</span>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn-icon" id="toggleProfileDetailPriv" style="background:none;border:none;color:var(--text-2);cursor:pointer;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:8px;" title="Toggle Visibility"><i class="fas fa-eye"></i></button>
+                                <button class="copy-btn" id="copyProfileDetailPriv" style="background:none;border:none;color:var(--accent);cursor:pointer;" title="Copy Private Key"><i class="fas fa-copy"></i></button>
+                            </div>
+                        </div>
+                        <div id="profileDetailPriv" style="font-family:monospace;font-size:0.75rem;word-break:break-all;color:var(--text-1);background:rgba(0,0,0,0.2);padding:6px 10px;border-radius:6px;letter-spacing:1px;margin-top:4px;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</div>
+                    </div>
+                </div>
+            </div>
 
             <div class="card mt-12">
 
@@ -804,7 +847,7 @@
             <label for="jsonFileInput" class="file-upload-label" style="margin-bottom:8px;cursor:pointer;display:block;">
                 <i class="fas fa-cloud-upload-alt"></i> <span id="jsonFileLabel">Choose File (.json)</span>
             </label>
-            <input type="file" id="jsonFileInput" accept=".json,application/json,text/plain" style="position:absolute;opacity:0;width:0;height:0;" />
+            <input type="file" id="jsonFileInput" accept=".json,application/json,text/plain" style="position:absolute;left:-9999px;top:-9999px;opacity:0;" />
             <div style="margin: 8px 0; font-weight: 700; font-size: 0.7rem; text-align: center; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px;">— OR —</div>
             <textarea id="jsonPasteInput" placeholder="Paste JSON backup content here..." style="width:100%; height:90px; font-family:monospace; font-size:0.75rem; padding:8px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-input); color:var(--text); resize:none; margin-bottom:12px;"></textarea>
             <button class="btn btn-primary" id="importJsonConfirmBtn">
@@ -869,6 +912,29 @@
             <button class="btn btn-outline btn-sm full-width mt-8" id="skipUpdateBtn">
                 <i class="fas fa-clock"></i> Remind Me Later
             </button>
+        </div>
+</div>
+
+<!-- Import QR Private Key Modal -->
+<div class="modal-overlay" id="importQrKeyModal">
+    <div class="modal">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+            <h3><i class="fas fa-key"></i> Secure Import Key</h3>
+            <button class="modal-close" data-modal="importQrKeyModal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:0.85rem;margin-bottom:12px;color:var(--text-2);">
+                Please enter the private key for <strong id="importQrWalletName"></strong> (<span id="importQrWalletAddr" style="font-family:monospace;font-size:0.75rem;word-break:break-all;"></span>) to finalize the import.
+            </p>
+            <div class="form-group">
+                <label><i class="fas fa-lock"></i> Private Key (hex)</label>
+                <input type="password" id="importQrKeyInput" placeholder="64-character hex private key" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-input);color:var(--text);margin-bottom:12px;" />
+            </div>
+            <button class="btn btn-primary w-100" id="importQrKeyConfirmBtn" style="width: 100%;">
+                <i class="fas fa-check"></i> Verify &amp; Import
+            </button>
+            <div id="importQrKeyError" class="mt-8"></div>
         </div>
     </div>
 </div>
