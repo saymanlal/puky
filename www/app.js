@@ -185,6 +185,7 @@
         detailLocked: $('#detailLocked'),
         detailNonce: $('#detailNonce'),
         detailBlock: $('#detailBlock'),
+        homeBlock: $('#homeBlock'),
         detailNetwork: $('#detailNetwork'),
         detailTxList: $('#detailTxList'),
         networkSelect: $('#networkSelect'),
@@ -617,9 +618,11 @@
         const homeBalance = document.getElementById('homeBalance');
         const homeStaked = document.getElementById('homeStaked');
         const homeNonce = document.getElementById('homeNonce');
+        const homeBlock = document.getElementById('homeBlock');
         if (homeBalance) homeBalance.textContent = formatBalance(activeWallet ? (activeWallet.balance || 0) : total);
         if (homeStaked) homeStaked.textContent = formatBalance(activeWallet ? (activeWallet.stake || 0) : staked);
         if (homeNonce) homeNonce.textContent = activeWallet ? (activeWallet.nonce || 0) : 0;
+        if (homeBlock) homeBlock.textContent = currentBlock || '—';
 
         // Render recent 3 transactions on home screen
         renderRecentTransactions();
@@ -912,6 +915,7 @@
                 currentBlock = (data.blocks && data.blocks[0] && data.blocks[0].index) || data.blockNumber || data.height || 0;
                 dom.detailBlock.textContent = currentBlock;
                 dom.stakeBlock.value = `Block #${currentBlock}`;
+                if (dom.homeBlock) dom.homeBlock.textContent = currentBlock;
 
                 if (activeWallet && activeWallet.stake > 0) {
                     const rewardTime = calculateRewardTime(activeWallet.stake);
@@ -997,10 +1001,8 @@
             const serverIds = new Set(serverTxs.map(t => t.txId));
             const stillPending = (activeWallet.transactions || []).filter(t => {
                 if (t.pending && !serverIds.has(t.txId)) {
-                    // Optimistic confirmation: if it was sent > 2 seconds ago, confirm it locally
-                    if (Date.now() - (t.time || 0) > 2000) {
-                        t.pending = false;
-                        t.blockNumber = currentBlock;
+                    // Keep it pending for up to 5 minutes to avoid premature disappearances
+                    if (Date.now() - (t.time || 0) > 300000) {
                         return false;
                     }
                     return true;
@@ -1016,12 +1018,8 @@
             const hasPendingUnstake = stillPending.some(t => t.type === 'UNSTAKE');
             const hasPendingBalanceTx = stillPending.some(t => t.type === 'TRANSFER' || t.type === 'STAKE' || t.type === 'UNSTAKE' || t.type === 'FAUCET');
 
-            // If the server says the wallet is unstaking, update lockBlock and deduce lockedAmount if needed
+            // Handle unstaking state synchronization carefully
             if (data.unstaking) {
-                if (!hasPendingUnstake) {
-                    activeWallet.lockBlock = data.unlockBlock;
-                }
-                
                 let virtualStake = 0;
                 let lastUnstakedAmount = 0;
                 const sortedTxs = [...activeWallet.transactions].sort((a, b) => (a.time || 0) - (b.time || 0));
@@ -1041,8 +1039,25 @@
                     }
                 }
                 
-                if (lastUnstakedAmount > 0 && (!activeWallet.lockedAmount || activeWallet.lockedAmount <= 0)) {
-                    activeWallet.lockedAmount = lastUnstakedAmount;
+                const unlockBlock = Number(data.unlockBlock) || 0;
+                if (unlockBlock > currentBlock) {
+                    if (!hasPendingUnstake) {
+                        activeWallet.lockBlock = unlockBlock;
+                        if (lastUnstakedAmount > 0) {
+                            activeWallet.lockedAmount = lastUnstakedAmount;
+                        }
+                    }
+                } else if (unlockBlock > 0) {
+                    activeWallet.lockBlock = null;
+                    activeWallet.lockedAmount = 0;
+                    if (lastUnstakedAmount > 0) {
+                        activeWallet.uncreditedBalance = lastUnstakedAmount;
+                    }
+                }
+            } else {
+                if (!hasPendingUnstake) {
+                    activeWallet.lockBlock = null;
+                    activeWallet.lockedAmount = 0;
                 }
             }
 
@@ -1058,16 +1073,6 @@
                 }
             }
             if (data.nonce !== undefined) activeWallet.nonce = data.nonce;
-            if (data.lockedAmount !== undefined) {
-                if (!hasPendingUnstake) {
-                    activeWallet.lockedAmount = data.lockedAmount;
-                }
-            }
-            if (data.unlockBlock !== undefined) {
-                if (!hasPendingUnstake) {
-                    activeWallet.lockBlock = data.unlockBlock;
-                }
-            }
 
             saveState();
             render();

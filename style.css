@@ -611,26 +611,55 @@
    .tx-item:hover { background: var(--bg-hover); margin: 0 -8px; padding: 10px 8px; border-radius: var(--radius-sm); }
    
    /* Mobile: wrap amount+time below badge+address */
-   @media (max-width: 480px) {
-     .tx-item {
-       flex-wrap: wrap;
-     }
-     .tx-item .tx-type-badge {
-       flex-shrink: 0;
-     }
-     .tx-item .tx-address-cell {
-       flex: 1;
-       min-width: 60px;
-     }
-     .tx-item .tx-amount {
-       margin-left: auto;
-     }
-     .tx-item .tx-time {
-       width: 100%;
-       padding-left: 0;
-       margin-top: 0;
-     }
-   }
+    @media (max-width: 480px) {
+      .tx-item {
+        flex-wrap: wrap;
+      }
+      .tx-item .tx-type-badge {
+        flex-shrink: 0;
+      }
+      .tx-item .tx-address-cell {
+        flex: 1;
+        min-width: 60px;
+      }
+      .tx-item .tx-amount {
+        margin-left: auto;
+      }
+      .tx-item .tx-time {
+        width: 100%;
+        padding-left: 0;
+        margin-top: 0;
+      }
+      .stats-row {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+      }
+      .stat-card {
+        padding: 8px 6px !important;
+        gap: 6px !important;
+        flex-direction: column !important;
+        text-align: center !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      .stat-icon {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 0.8rem !important;
+        margin: 0 auto !important;
+      }
+      .stat-info {
+        text-align: center !important;
+        width: 100% !important;
+      }
+      .stat-label {
+        font-size: 0.55rem !important;
+        margin-bottom: 2px !important;
+      }
+      .stat-value {
+        font-size: 0.85rem !important;
+      }
+    }
 
    .tx-type-badge {
      display: inline-flex;
