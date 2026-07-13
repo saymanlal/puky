@@ -995,15 +995,33 @@
             activeWallet.transactions = [...serverTxs, ...stillPending]
                 .sort((a, b) => (a.time || 0) - (b.time || 0));
 
-            // Only trust server-confirmed balance/stake numbers
+            // Only trust server-confirmed balance/stake numbers if no local transaction affecting them is pending
+            const hasPendingStake = stillPending.some(t => t.type === 'STAKE');
+            const hasPendingUnstake = stillPending.some(t => t.type === 'UNSTAKE');
+            const hasPendingBalanceTx = stillPending.some(t => t.type === 'TRANSFER' || t.type === 'STAKE' || t.type === 'UNSTAKE' || t.type === 'FAUCET');
+
             if (data.balance !== undefined) {
                 const b = Number(data.balance);
-                activeWallet.balance = isFinite(b) ? b : activeWallet.balance;
+                if (!hasPendingBalanceTx) {
+                    activeWallet.balance = isFinite(b) ? b : activeWallet.balance;
+                }
             }
-            if (data.stake !== undefined) activeWallet.stake = data.stake;
+            if (data.stake !== undefined) {
+                if (!hasPendingStake && !hasPendingUnstake) {
+                    activeWallet.stake = data.stake;
+                }
+            }
             if (data.nonce !== undefined) activeWallet.nonce = data.nonce;
-            if (data.lockedAmount !== undefined) activeWallet.lockedAmount = data.lockedAmount;
-            if (data.unlockBlock !== undefined) activeWallet.lockBlock = data.unlockBlock;
+            if (data.lockedAmount !== undefined) {
+                if (!hasPendingUnstake) {
+                    activeWallet.lockedAmount = data.lockedAmount;
+                }
+            }
+            if (data.unlockBlock !== undefined) {
+                if (!hasPendingUnstake) {
+                    activeWallet.lockBlock = data.unlockBlock;
+                }
+            }
 
             saveState();
             render();
