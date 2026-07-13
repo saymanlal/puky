@@ -200,22 +200,30 @@
             </div>
         </div>
 
-        <!-- ══ PAGE: WALLETS ══ -->
         <div class="page" id="page-wallets">
             <p class="section-title">My Wallets</p>
             <div class="search-box mb-12">
                 <i class="fas fa-search"></i>
                 <input type="text" id="walletSearch" placeholder="Search wallets…" />
             </div>
-            <div class="btn-group mb-12">
+            <div class="btn-group mb-12" style="flex-wrap:wrap;gap:6px;">
                 <button class="btn btn-primary btn-sm" id="addWalletBtn">
                     <i class="fas fa-plus"></i> New Wallet
                 </button>
                 <button class="btn btn-outline btn-sm" id="importJsonBtn">
-                    <i class="fas fa-file-import"></i> Import JSON
+                    <i class="fas fa-file-import"></i> Import Wallet
+                </button>
+                <button class="btn btn-outline btn-sm" id="importAllJsonBtn">
+                    <i class="fas fa-layer-group"></i> Import All
                 </button>
                 <button class="btn btn-outline btn-sm" id="importQrBtn">
                     <i class="fas fa-qrcode"></i> Import QR
+                </button>
+                <button class="btn btn-outline btn-sm" id="exportWalletBtn2">
+                    <i class="fas fa-file-export"></i> Export Wallet
+                </button>
+                <button class="btn btn-outline btn-sm" id="exportAllBtn2">
+                    <i class="fas fa-download"></i> Export All
                 </button>
             </div>
 
@@ -286,6 +294,14 @@
             <!-- Receive Tab -->
             <div class="inner-tab-panel card" id="itab-receive-form">
                 <p class="section-title">Receive SAYN</p>
+                <div id="receiveNoWalletMsg" style="display:none;" class="center">
+                    <div style="padding:24px;text-align:center;">
+                        <i class="fas fa-wallet" style="font-size:2rem;color:var(--text-3);margin-bottom:8px;display:block;"></i>
+                        <p class="text-muted">Select a wallet first to see your receive address</p>
+                        <button class="btn btn-primary btn-sm mt-8" onclick="switchTab('wallets')"><i class="fas fa-wallet"></i> Go to Wallets</button>
+                    </div>
+                </div>
+                <div id="receiveWalletContent" style="display:none;">
                 <div class="center">
                     <div id="qrReceiveContainer" style="background:#fff;border-radius:16px;padding:16px;display:inline-block;margin-bottom:14px;box-shadow:var(--shadow-sm);"></div>
                 </div>
@@ -303,6 +319,7 @@
                     <button class="btn btn-outline btn-sm" id="printReceiveQr">
                         <i class="fas fa-print"></i> Print
                     </button>
+                </div>
                 </div>
             </div>
 
@@ -498,7 +515,32 @@
                 <p class="text-muted">Manage your multi-chain assets</p>
             </div>
 
+            <!-- Selected Wallet QR for Receive & Import by Scanning -->
+            <p class="section-title mt-16">My Wallet QR Code</p>
+            <div class="card" id="profileQrCard" style="text-align:center;padding:20px;">
+                <div id="profileQrNoWallet" style="padding:16px;">
+                    <i class="fas fa-wallet" style="font-size:2rem;color:var(--text-3);margin-bottom:8px;display:block;"></i>
+                    <p class="text-muted">Select a wallet to view your QR code</p>
+                </div>
+                <div id="profileQrContent" style="display:none;">
+                    <p style="font-size:0.75rem;color:var(--text-2);margin-bottom:12px;"><i class="fas fa-info-circle"></i> Share this QR to receive SAYN or scan on another device to import your wallet</p>
+                    <div style="background:#fff;border-radius:16px;padding:16px;display:inline-block;margin-bottom:12px;box-shadow:var(--shadow-sm);">
+                        <div id="profileQrContainer"></div>
+                    </div>
+                    <div class="address-row" style="justify-content:center;margin-bottom:12px;">
+                        <span class="address-mono" id="profileQrAddress" style="font-size:0.65rem;word-break:break-all;"></span>
+                        <button class="copy-btn" id="copyProfileAddr" title="Copy Address"><i class="fas fa-copy"></i></button>
+                    </div>
+                    <div class="btn-group" style="justify-content:center;flex-wrap:wrap;gap:6px;">
+                        <button class="btn btn-primary btn-sm" id="profileShareQrBtn"><i class="fas fa-share-alt"></i> Share QR</button>
+                        <button class="btn btn-outline btn-sm" id="profileDownloadQrBtn"><i class="fas fa-download"></i> Download</button>
+                        <button class="btn btn-outline btn-sm" id="profileScanImportBtn"><i class="fas fa-qrcode"></i> Scan to Import</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="card mt-12">
+
                 <div class="settings-row">
                     <span class="settings-row-label">
                         <span class="stat-icon" style="background:rgba(79,124,255,0.1);color:var(--accent);width:28px;height:28px;min-width:28px;border-radius:8px;">
@@ -759,10 +801,10 @@
         </div>
         <div class="modal-body">
             <p class="text-muted mb-12"><i class="fas fa-info-circle"></i> Choose a JSON file or paste the JSON text below:</p>
-            <label for="jsonFileInput" class="file-upload-label" style="margin-bottom:8px;">
-                <i class="fas fa-cloud-upload-alt"></i> Choose File
+            <label for="jsonFileInput" class="file-upload-label" style="margin-bottom:8px;cursor:pointer;display:block;">
+                <i class="fas fa-cloud-upload-alt"></i> <span id="jsonFileLabel">Choose File (.json)</span>
             </label>
-            <input type="file" id="jsonFileInput" accept=".json" />
+            <input type="file" id="jsonFileInput" accept=".json,application/json,text/plain" style="position:absolute;opacity:0;width:0;height:0;" />
             <div style="margin: 8px 0; font-weight: 700; font-size: 0.7rem; text-align: center; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px;">— OR —</div>
             <textarea id="jsonPasteInput" placeholder="Paste JSON backup content here..." style="width:100%; height:90px; font-family:monospace; font-size:0.75rem; padding:8px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-input); color:var(--text); resize:none; margin-bottom:12px;"></textarea>
             <button class="btn btn-primary" id="importJsonConfirmBtn">

@@ -528,23 +528,29 @@
 
         dom.walletList.innerHTML = networkWallets.map(w => {
             const chain = getChainConfig(w.chain || 'sayman');
+            const isActive = w.id === (activeWallet ? activeWallet.id : null);
             return `
-                <div class="wallet-item ${w.id === (activeWallet ? activeWallet.id : null) ? 'active' : ''}" data-id="${w.id}">
+                <div class="wallet-item ${isActive ? 'active' : ''}" data-id="${w.id}">
                     <span class="wallet-dot" style="background:${chain.color};"></span>
                     <div class="wallet-info">
-                        <div class="wallet-name">${w.name} <span style="font-size:0.6rem;color:${chain.color};">${chain.symbol}</span></div>
+                        <div class="wallet-name">${w.name} <span style="font-size:0.6rem;color:${chain.color};">${chain.symbol}</span>${isActive ? ' <span style="font-size:0.55rem;color:var(--success);font-weight:700;">✓ ACTIVE</span>' : ''}</div>
                         <div class="wallet-balance-sm">${formatBalance(w.balance || 0)} ${chain.symbol}</div>
                     </div>
-                    <button class="wallet-delete" data-id="${w.id}" title="Delete">
-                        <i class="fas fa-times"></i>
-                    </button>
+                    <div class="wallet-item-actions">
+                        <button class="wallet-edit-btn" data-id="${w.id}" title="Edit Wallet">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button class="wallet-delete" data-id="${w.id}" title="Delete">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                 </div>
             `;
         }).join('');
 
         dom.walletList.querySelectorAll('.wallet-item').forEach(el => {
             el.addEventListener('click', (e) => {
-                if (e.target.closest('.wallet-delete')) return;
+                if (e.target.closest('.wallet-delete') || e.target.closest('.wallet-edit-btn')) return;
                 const id = el.dataset.id;
                 activeWallet = wallets.find(w => w.id === id) || null;
                 saveState();
@@ -556,6 +562,20 @@
                     dom.mobileOverlay?.classList.remove('active');
                 }
                 showToast(`Selected: ${activeWallet ? activeWallet.name : ''}`, 'success');
+            });
+        });
+
+        dom.walletList.querySelectorAll('.wallet-edit-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = btn.dataset.id;
+                const wallet = wallets.find(w => w.id === id);
+                if (!wallet) return;
+                activeWallet = wallet;
+                saveState();
+                render();
+                // Open the full details modal for this wallet
+                showWalletDetails(wallet);
             });
         });
 
@@ -587,6 +607,72 @@
         dom.walletCount.textContent = networkWallets.length;
         dom.txCount.textContent = txCount;
         dom.totalStaked.textContent = formatBalance(staked + locked);
+
+        // Update home stats row
+        const homeBalance = document.getElementById('homeBalance');
+        const homeStaked = document.getElementById('homeStaked');
+        const homeNonce = document.getElementById('homeNonce');
+        if (homeBalance) homeBalance.textContent = formatBalance(activeWallet ? (activeWallet.balance || 0) : total);
+        if (homeStaked) homeStaked.textContent = formatBalance(activeWallet ? (activeWallet.stake || 0) : staked);
+        if (homeNonce) homeNonce.textContent = activeWallet ? (activeWallet.nonce || 0) : 0;
+
+        // Render recent 3 transactions on home screen
+        renderRecentTransactions();
+    }
+
+    function renderRecentTransactions() {
+        const recentTxList = document.getElementById('recentTxList');
+        if (!recentTxList) return;
+
+        // Gather all transactions from all wallets, sort newest first
+        const networkWallets = wallets.filter(w => w.networkType === getNetworkType());
+        let allTxs = [];
+        networkWallets.forEach(w => {
+            (w.transactions || []).forEach(tx => {
+                allTxs.push({ ...tx, walletName: w.name, walletAddress: w.address, walletChain: w.chain || 'sayman' });
+            });
+        });
+
+        allTxs.sort((a, b) => (b.time || 0) - (a.time || 0));
+        const recent = allTxs.slice(0, 3);
+
+        if (recent.length === 0) {
+            recentTxList.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <p>No transactions yet</p>
+                </div>
+            `;
+            return;
+        }
+
+        recentTxList.innerHTML = recent.map((tx, index) => {
+            const typeClass = (tx.type || 'transfer').toLowerCase().replace('_', '');
+            const isPositive = (tx.amount || 0) >= 0;
+            const chain = getChainConfig(tx.walletChain || 'sayman');
+            let timeDisplay = '';
+            if (tx.time) {
+                try {
+                    const d = new Date(tx.time);
+                    const now = Date.now();
+                    const diff = now - d.getTime();
+                    if (diff < 60000) timeDisplay = 'Just now';
+                    else if (diff < 3600000) timeDisplay = Math.floor(diff/60000) + 'm ago';
+                    else if (diff < 86400000) timeDisplay = Math.floor(diff/3600000) + 'h ago';
+                    else timeDisplay = d.toLocaleDateString('en', { month: 'short', day: 'numeric' });
+                } catch(e) { timeDisplay = ''; }
+            }
+            const iconMap = { 'TRANSFER': isPositive ? 'fa-arrow-down' : 'fa-arrow-up', 'STAKE': 'fa-lock', 'UNSTAKE': 'fa-unlock', 'REWARD': 'fa-gift', 'FAUCET': 'fa-tint', 'default': 'fa-exchange-alt' };
+            const icon = iconMap[tx.type] || iconMap.default;
+            return `
+                <div class="tx-item recent-tx-preview" style="cursor:default;">
+                    <span class="tx-type-badge ${typeClass}"><i class="fas ${icon}"></i> ${tx.type || 'TX'}</span>
+                    <span class="tx-address-cell">${tx.walletName || ''}</span>
+                    <span class="tx-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : ''}${formatBalance(tx.amount || 0)} ${chain.symbol}</span>
+                    <span class="tx-time">${timeDisplay}</span>
+                </div>
+            `;
+        }).join('');
     }
 
     function renderDetail() {
@@ -603,6 +689,10 @@
             dom.detailBlock.textContent = '0';
             if (dom.detailNetwork) dom.detailNetwork.textContent = getNetworkName();
             dom.detailTxList.innerHTML = '<div class="empty-state"><i class="fas fa-wallet"></i><p>Select a wallet to view transactions</p></div>';
+            // Update receive tab - no wallet
+            updateReceiveTab(null);
+            // Update profile QR - no wallet
+            updateProfileQr(null);
             return;
         }
 
@@ -639,7 +729,84 @@
         dom.detailBlock.textContent = currentBlock || '0';
         if (dom.detailNetwork) dom.detailNetwork.textContent = getNetworkName();
 
+        // Update receive tab
+        updateReceiveTab(w);
+        // Update profile QR
+        updateProfileQr(w);
+
         renderTransactionHistory();
+    }
+
+    let receiveQrInstance = null;
+    let profileQrInstance = null;
+
+    function updateReceiveTab(w) {
+        const noWalletMsg = document.getElementById('receiveNoWalletMsg');
+        const walletContent = document.getElementById('receiveWalletContent');
+        const receiveAddressEl = document.getElementById('receiveAddress');
+        const qrContainer = document.getElementById('qrReceiveContainer');
+
+        if (!w) {
+            if (noWalletMsg) noWalletMsg.style.display = '';
+            if (walletContent) walletContent.style.display = 'none';
+            return;
+        }
+
+        if (noWalletMsg) noWalletMsg.style.display = 'none';
+        if (walletContent) walletContent.style.display = '';
+
+        const displayAddress = getAddressForChain(w.address, w.chain);
+        if (receiveAddressEl) receiveAddressEl.textContent = displayAddress;
+
+        // Generate receive QR
+        if (qrContainer) {
+            qrContainer.innerHTML = '';
+            if (receiveQrInstance) { try { receiveQrInstance.clear(); } catch(e){} }
+            try {
+                receiveQrInstance = new QRCode(qrContainer, {
+                    text: w.address,
+                    width: 180,
+                    height: 180,
+                    colorDark: '#000000',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.H,
+                });
+            } catch(e) { console.warn('Receive QR gen failed:', e); }
+        }
+    }
+
+    function updateProfileQr(w) {
+        const noWalletEl = document.getElementById('profileQrNoWallet');
+        const contentEl = document.getElementById('profileQrContent');
+        const addressEl = document.getElementById('profileQrAddress');
+        const containerEl = document.getElementById('profileQrContainer');
+
+        if (!w) {
+            if (noWalletEl) noWalletEl.style.display = '';
+            if (contentEl) contentEl.style.display = 'none';
+            return;
+        }
+
+        if (noWalletEl) noWalletEl.style.display = 'none';
+        if (contentEl) contentEl.style.display = '';
+
+        const displayAddress = getAddressForChain(w.address, w.chain);
+        if (addressEl) addressEl.textContent = displayAddress;
+
+        if (containerEl) {
+            containerEl.innerHTML = '';
+            if (profileQrInstance) { try { profileQrInstance.clear(); } catch(e){} }
+            try {
+                profileQrInstance = new QRCode(containerEl, {
+                    text: w.address,
+                    width: 180,
+                    height: 180,
+                    colorDark: '#000000',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.H,
+                });
+            } catch(e) { console.warn('Profile QR gen failed:', e); }
+        }
     }
 
     function updateUnstakeCountdown() {
@@ -1109,26 +1276,32 @@
         }
 
         try {
-            if (navigator.permissions) {
-                try {
-                    const result = await navigator.permissions.query({ name: 'camera' });
-                    if (result.state === 'denied') {
-                        dom.qrPayResult.innerHTML = `
-                            <div class="result-box error">
-                                <i class="fas fa-exclamation-circle"></i> Camera permission denied. Please enable in settings.
-                            </div>
-                        `;
-                        isQrPayScanning = false;
-                        return;
-                    }
-                } catch (permErr) {
-                    // Some WebViews don't support 'camera' permission query
-                }
-            }
-
             if (typeof Html5Qrcode === 'undefined') {
                 dom.qrPayResult.innerHTML = `<div class="result-box error">QR scanner library not loaded.</div>`;
                 isQrPayScanning = false;
+                return;
+            }
+
+            dom.qrPayResult.innerHTML = `
+                <div class="result-box info">
+                    <i class="fas fa-spinner fa-spin"></i> Requesting camera access...
+                </div>
+            `;
+
+            // Explicitly request camera permission first (critical for Android WebView)
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                stream.getTracks().forEach(t => t.stop()); // release immediately, Html5Qrcode will re-acquire
+            } catch (permErr) {
+                isQrPayScanning = false;
+                let msg = 'Camera access denied.';
+                if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+                    msg = 'Camera permission denied. Please go to Settings → Apps → PUKY Wallet → Permissions and enable Camera.';
+                } else if (permErr.name === 'NotFoundError') {
+                    msg = 'No camera found on this device.';
+                }
+                dom.qrPayResult.innerHTML = `<div class="result-box error"><i class="fas fa-exclamation-circle"></i> ${msg}</div>`;
                 return;
             }
 
@@ -1136,15 +1309,9 @@
 
             const config = {
                 fps: 15,
-                qrbox: { width: 250, height: 250 },
+                qrbox: { width: 220, height: 220 },
                 aspectRatio: 1.0,
             };
-
-            dom.qrPayResult.innerHTML = `
-                <div class="result-box info">
-                    <i class="fas fa-spinner fa-spin"></i> Requesting camera access...
-                </div>
-            `;
 
             await qrPayScannerInstance.start({
                 facingMode: 'environment'
@@ -1158,9 +1325,13 @@
 
         } catch (err) {
             isQrPayScanning = false;
+            let errMsg = err.message || 'Camera access denied.';
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                errMsg = 'Camera permission denied. Go to Settings → Apps → PUKY Wallet → Permissions → Enable Camera.';
+            }
             dom.qrPayResult.innerHTML = `
                 <div class="result-box error">
-                    <i class="fas fa-exclamation-circle"></i> ${err.message || 'Camera access denied.'}
+                    <i class="fas fa-exclamation-circle"></i> ${errMsg}
                 </div>
             `;
             console.error('QR Pay Scanner error:', err);
@@ -1956,6 +2127,76 @@
 
     dom.importJsonBtn.addEventListener('click', () => openModal('importJsonModal'));
 
+    // ── NEW: importAllJsonBtn (also opens importJsonModal, same flow handles both) ──
+    const importAllJsonBtn2 = document.getElementById('importAllJsonBtn');
+    if (importAllJsonBtn2) importAllJsonBtn2.addEventListener('click', () => openModal('importJsonModal'));
+
+    // ── File label click handler (fixes Android WebView file picker) ──
+    const jsonFileLabelEl = document.querySelector('label[for="jsonFileInput"]');
+    if (jsonFileLabelEl) {
+        jsonFileLabelEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            dom.jsonFileInput.click();
+        });
+    }
+    // Show selected filename in label
+    dom.jsonFileInput.addEventListener('change', () => {
+        const labelSpan = document.getElementById('jsonFileLabel');
+        if (labelSpan) {
+            labelSpan.textContent = dom.jsonFileInput.files[0]
+                ? dom.jsonFileInput.files[0].name
+                : 'Choose File (.json)';
+        }
+    });
+
+    // ── NEW: exportWalletBtn2 on wallets page ──
+    const exportWalletBtn2el = document.getElementById('exportWalletBtn2');
+    if (exportWalletBtn2el) exportWalletBtn2el.addEventListener('click', () => dom.exportWalletBtn.click());
+
+    // ── NEW: exportAllBtn2 on wallets page ──
+    const exportAllBtn2el = document.getElementById('exportAllBtn2');
+    if (exportAllBtn2el) exportAllBtn2el.addEventListener('click', () => dom.exportAllBtn.click());
+
+    // ── Profile page buttons ──
+    const copyProfileAddr = document.getElementById('copyProfileAddr');
+    if (copyProfileAddr) copyProfileAddr.addEventListener('click', () => {
+        if (activeWallet) copyToClipboard(activeWallet.address, 'Address copied!');
+    });
+
+    const profileShareQrBtn = document.getElementById('profileShareQrBtn');
+    if (profileShareQrBtn) profileShareQrBtn.addEventListener('click', async () => {
+        const container = document.getElementById('profileQrContainer');
+        const canvas = container && container.querySelector('canvas');
+        if (!canvas) { showToast('No QR to share', 'error'); return; }
+        try {
+            const blob = await new Promise(resolve => canvas.toBlob(resolve));
+            if (navigator.share) {
+                await navigator.share({
+                    title: 'PUKY Wallet QR',
+                    text: `Send payment to: ${activeWallet ? activeWallet.address : ''}`,
+                    files: [new File([blob], 'puky_qr.png', { type: 'image/png' })]
+                });
+            } else if (activeWallet) {
+                copyToClipboard(activeWallet.address, 'Address copied!');
+            }
+        } catch (err) { if (err.name !== 'AbortError') console.error('Share failed:', err); }
+    });
+
+    const profileDownloadQrBtn = document.getElementById('profileDownloadQrBtn');
+    if (profileDownloadQrBtn) profileDownloadQrBtn.addEventListener('click', () => {
+        const container = document.getElementById('profileQrContainer');
+        const canvas = container && container.querySelector('canvas');
+        if (!canvas) { showToast('No QR to download', 'error'); return; }
+        const link = document.createElement('a');
+        link.download = `puky_wallet_qr_${activeWallet ? activeWallet.name : 'address'}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('QR downloaded!', 'success');
+    });
+
+    const profileScanImportBtn = document.getElementById('profileScanImportBtn');
+    if (profileScanImportBtn) profileScanImportBtn.addEventListener('click', () => openModal('scanQrModal'));
+
     dom.importJsonConfirmBtn.addEventListener('click', async () => {
         const file = dom.jsonFileInput.files[0];
         const pastedText = dom.jsonPasteInput ? dom.jsonPasteInput.value.trim() : '';
@@ -1970,7 +2211,13 @@
         try {
             let text = '';
             if (file) {
-                text = await file.text();
+                // Use FileReader for Android WebView compatibility
+                text = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result);
+                    reader.onerror = () => reject(new Error('Failed to read file'));
+                    reader.readAsText(file);
+                });
             } else {
                 text = pastedText;
             }
@@ -1980,6 +2227,7 @@
             let imported = 0;
 
             if (data.wallets && Array.isArray(data.wallets)) {
+                // Multi-wallet backup
                 for (const wData of data.wallets) {
                     if (wData.privateKey) {
                         const chain = wData.chain || 'sayman';
@@ -1989,11 +2237,18 @@
                         if (wData.stake) w.stake = wData.stake;
                         if (wData.lockedAmount) w.lockedAmount = wData.lockedAmount;
                         if (wData.lockBlock) w.lockBlock = wData.lockBlock;
-                        wallets.push(w);
-                        imported++;
+                        if (wData.networkType) w.networkType = wData.networkType;
+                        // Avoid duplicate by address
+                        if (!wallets.find(ex => ex.address === w.address)) {
+                            wallets.push(w);
+                            imported++;
+                        } else {
+                            imported++; // count as imported even if already exists
+                        }
                     }
                 }
             } else if (data.privateKey) {
+                // Single wallet backup
                 const chain = data.chain || 'sayman';
                 const w = await createWalletFromPrivateKey(data.privateKey, data.name || 'Imported Wallet', chain);
                 if (data.transactions) w.transactions = data.transactions;
@@ -2001,7 +2256,10 @@
                 if (data.stake) w.stake = data.stake;
                 if (data.lockedAmount) w.lockedAmount = data.lockedAmount;
                 if (data.lockBlock) w.lockBlock = data.lockBlock;
-                wallets.push(w);
+                if (data.networkType) w.networkType = data.networkType;
+                if (!wallets.find(ex => ex.address === w.address)) {
+                    wallets.push(w);
+                }
                 imported++;
             }
 
@@ -2064,11 +2322,30 @@
                 return;
             }
 
+            dom.scanResult.innerHTML = `<div class="result-box info"><i class="fas fa-spinner fa-spin"></i> Requesting camera access...</div>`;
+
+            // Explicitly request camera permission first (critical for Android WebView)
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                stream.getTracks().forEach(t => t.stop());
+            } catch (permErr) {
+                isScanning = false;
+                if (dom.stopScanBtn) dom.stopScanBtn.classList.add('hidden');
+                let msg = 'Camera access denied.';
+                if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+                    msg = 'Camera permission denied. Go to Settings → Apps → PUKY Wallet → Permissions → Enable Camera.';
+                } else if (permErr.name === 'NotFoundError') {
+                    msg = 'No camera found on this device.';
+                }
+                dom.scanResult.innerHTML = `<div class="result-box error"><i class="fas fa-exclamation-circle"></i> ${msg}</div>`;
+                return;
+            }
+
             html5QrCode = new Html5Qrcode('qrScanner');
 
             const config = {
                 fps: 15,
-                qrbox: { width: 250, height: 250 },
+                qrbox: { width: 220, height: 220 },
                 aspectRatio: 1.0,
             };
 
@@ -2092,9 +2369,13 @@
         } catch (err) {
             isScanning = false;
             if (dom.stopScanBtn) dom.stopScanBtn.classList.add('hidden');
+            let errMsg = err.message || 'Camera access denied.';
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                errMsg = 'Camera permission denied. Go to Settings → Apps → PUKY Wallet → Permissions → Enable Camera.';
+            }
             dom.scanResult.innerHTML = `
                 <div class="result-box error">
-                    <i class="fas fa-exclamation-circle"></i> ${err.message || 'Camera access denied.'}
+                    <i class="fas fa-exclamation-circle"></i> ${errMsg}
                 </div>
             `;
             console.error('QR Scanner error:', err);
@@ -2638,6 +2919,11 @@
         }
         if (id === 'scanQrModal') stopQrScanner();
         if (id === 'qrPayModal') stopQrPayScanner();
+        if (id === 'importJsonModal') {
+            const labelSpan = document.getElementById('jsonFileLabel');
+            if (labelSpan) labelSpan.textContent = 'Choose File (.json)';
+            if (dom.jsonImportStatus) dom.jsonImportStatus.innerHTML = '';
+        }
     }
 
     window.openModal = openModal;

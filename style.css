@@ -444,8 +444,43 @@
      cursor: pointer;
      transition: all var(--transition);
    }
-   .wallet-item:hover { border-color: var(--accent); background: var(--bg-hover); }
-   .wallet-item.selected { border-color: var(--accent); background: rgba(79,124,255,0.07); }
+    .wallet-item:hover { border-color: var(--accent); background: var(--bg-hover); }
+    .wallet-item.selected { border-color: var(--accent); background: rgba(79,124,255,0.07); }
+    .wallet-item.active { border-color: var(--accent); background: rgba(79, 124, 255, 0.08); box-shadow: 0 0 0 1px var(--accent); }
+    
+    .wallet-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    
+    .wallet-edit-btn, .wallet-delete {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    
+    .wallet-edit-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(79, 124, 255, 0.1);
+    }
+    
+    .wallet-delete:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+      background: rgba(255, 77, 109, 0.1);
+    }
    
    .wallet-avatar {
      width: 40px;
@@ -559,18 +594,73 @@
    
    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
    
-   .tx-list { display: flex; flex-direction: column; }
+   .tx-list { display: flex; flex-direction: column; width: 100%; }
    .tx-item {
      display: flex;
      align-items: center;
-     gap: 12px;
-     padding: 12px 0;
+     gap: 6px;
+     padding: 10px 0;
      border-bottom: 1px solid var(--border);
      cursor: pointer;
      transition: all var(--transition);
+     min-width: 0;
+     width: 100%;
+     overflow: hidden;
    }
    .tx-item:last-child { border-bottom: none; }
-   .tx-item:hover { background: var(--bg-hover); margin: 0 -8px; padding: 12px 8px; border-radius: var(--radius-sm); }
+   .tx-item:hover { background: var(--bg-hover); margin: 0 -8px; padding: 10px 8px; border-radius: var(--radius-sm); }
+   
+   /* Mobile: wrap amount+time below badge+address */
+   @media (max-width: 480px) {
+     .tx-item {
+       flex-wrap: wrap;
+     }
+     .tx-item .tx-type-badge {
+       flex-shrink: 0;
+     }
+     .tx-item .tx-address-cell {
+       flex: 1;
+       min-width: 60px;
+     }
+     .tx-item .tx-amount {
+       margin-left: auto;
+     }
+     .tx-item .tx-time {
+       width: 100%;
+       padding-left: 0;
+       margin-top: 0;
+     }
+   }
+
+   .tx-type-badge {
+     display: inline-flex;
+     align-items: center;
+     gap: 4px;
+     padding: 3px 8px;
+     border-radius: var(--radius-pill);
+     font-size: 0.62rem;
+     font-weight: 700;
+     text-transform: uppercase;
+     letter-spacing: 0.4px;
+     white-space: nowrap;
+     flex-shrink: 0;
+   }
+   .tx-type-badge.transfer { background: rgba(79,124,255,0.15); color: var(--accent); }
+   .tx-type-badge.stake    { background: rgba(123,92,255,0.15); color: var(--accent-2); }
+   .tx-type-badge.unstake  { background: rgba(255,184,48,0.15); color: var(--warning); }
+   .tx-type-badge.reward   { background: rgba(16,217,138,0.15); color: var(--success); }
+   .tx-type-badge.faucet   { background: rgba(16,217,138,0.15); color: var(--success); }
+   .tx-type-badge.genesis  { background: rgba(16,217,138,0.15); color: var(--success); }
+   
+   .tx-address-cell {
+     font-size: 0.67rem;
+     color: var(--text-3);
+     font-family: monospace;
+     white-space: nowrap;
+     overflow: hidden;
+     text-overflow: ellipsis;
+     min-width: 0;
+   }
    
    .tx-icon {
      width: 36px;
@@ -590,12 +680,22 @@
    .tx-info { flex: 1; min-width: 0; }
    .tx-type { font-size: 0.82rem; font-weight: 700; color: var(--text); }
    .tx-hash { font-size: 0.67rem; color: var(--text-3); font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-   .tx-amount { text-align: right; flex-shrink: 0; }
+   .tx-amount { text-align: right; flex-shrink: 0; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+   .tx-amount.positive { color: var(--success); }
+   .tx-amount.negative { color: var(--danger); }
    .tx-amount-val { font-size: 0.9rem; font-weight: 700; }
    .tx-amount-val.pos { color: var(--success); }
    .tx-amount-val.neg { color: var(--danger); }
-   .tx-time { font-size: 0.62rem; color: var(--text-3); }
+   .tx-time { font-size: 0.58rem; color: var(--text-3); text-align: right; white-space: nowrap; }
    
+   /* Recent TX Preview on home screen */
+   .recent-tx-preview { display: flex; flex-direction: column; }
+   .recent-tx-preview .tx-item { flex-wrap: nowrap; }
+   .recent-tx-preview .tx-item .tx-address-cell { max-width: 100px; }
+   @media (max-width: 360px) {
+     .recent-tx-preview .tx-item { flex-wrap: wrap; }
+   }
+
    .inner-tabs {
      display: flex;
      gap: 4px;
@@ -683,24 +783,33 @@
    
    .filter-row {
      display: flex;
-     gap: 8px;
+     gap: 6px;
      margin-bottom: 12px;
      flex-wrap: wrap;
+     max-width: 100%;
+     box-sizing: border-box;
    }
    .filter-row select {
-     padding: 7px 10px;
+     padding: 7px 8px;
      border: 1px solid var(--border);
      border-radius: var(--radius-sm);
      background: var(--bg-input);
      color: var(--text-2);
      font-family: var(--font);
-     font-size: 0.72rem;
+     font-size: 0.7rem;
      font-weight: 600;
      cursor: pointer;
      outline: none;
+     min-width: 0;
+     max-width: 130px;
+     flex: 1 1 auto;
    }
    .filter-row select:focus { border-color: var(--accent); }
-   
+   @media (max-width: 400px) {
+     .filter-row select { font-size: 0.65rem; padding: 5px 6px; max-width: 110px; }
+     .filter-row .btn { padding: 6px 8px; }
+   }
+
    .badge {
      display: inline-flex;
      align-items: center;
@@ -868,8 +977,9 @@
      text-align: center;
    }
    .file-upload-label:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,124,255,0.04); }
-   input[type="file"] { display: none; }
-   
+   #qrFileInput { display: none; }
+   /* Note: jsonFileInput uses inline positioning so Android WebView can trigger it */
+
    .period-row {
      display: flex;
      gap: 4px;

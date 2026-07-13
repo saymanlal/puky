@@ -49,7 +49,7 @@ mkdir -p www apk
 rm -rf ~/.gradle/caches/8.* 2>/dev/null || true
 
 echo "==> 4. Copy web assets"
-cp index.html style.css app.js www/ 2>/dev/null || true
+cp index.html style.css app.js crypto-client.js www/ 2>/dev/null || true
 cp logo.svg puky-icon.jpg vizkus.png www/ 2>/dev/null || true
 cp *.min.js www/ 2>/dev/null || true
 
@@ -57,6 +57,92 @@ echo "==> 5. Init Capacitor + Android platform"
 npx cap init "$APP_NAME" "$APP_ID" --web-dir=www
 npx cap add android
 npx cap sync android
+
+echo "==> 5b. Patch AndroidManifest.xml with permissions"
+MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
+if [ -f "$MANIFEST_PATH" ]; then
+    # Remove existing closing manifest tag to append permissions and re-close
+    sed -i 's/<\/manifest>//g' "$MANIFEST_PATH"
+    cat >> "$MANIFEST_PATH" << 'EOF'
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+</manifest>
+EOF
+    echo "✅ Patched AndroidManifest.xml permissions"
+fi
+
+echo "==> 5c. Patch MainActivity.java to request camera permission at startup"
+MAIN_ACTIVITY_DIR="android/app/src/main/java/com/krushn/pukywallet"
+mkdir -p "$MAIN_ACTIVITY_DIR"
+cat > "$MAIN_ACTIVITY_DIR/MainActivity.java" << 'JAVAEOF'
+package com.krushn.pukywallet;
+
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Bundle;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
+import android.webkit.WebView;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {
+    private static final int CAMERA_PERMISSION_REQUEST = 101;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // Request camera permission at startup for QR scanning
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                new String[]{Manifest.permission.CAMERA},
+                CAMERA_PERMISSION_REQUEST);
+        }
+
+        // Override WebChromeClient to handle camera permission requests from web
+        WebView webView = getBridge().getWebView();
+        if (webView != null) {
+            webView.setWebChromeClient(new WebChromeClient() {
+                @Override
+                public void onPermissionRequest(final PermissionRequest request) {
+                    runOnUiThread(() -> {
+                        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
+                                == PackageManager.PERMISSION_GRANTED) {
+                            request.grant(request.getResources());
+                        } else {
+                            ActivityCompat.requestPermissions(MainActivity.this,
+                                new String[]{Manifest.permission.CAMERA},
+                                CAMERA_PERMISSION_REQUEST);
+                            request.grant(request.getResources());
+                        }
+                    });
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CAMERA_PERMISSION_REQUEST) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                android.util.Log.d("PUKY", "Camera permission granted");
+            }
+        }
+    }
+}
+JAVAEOF
+echo "✅ MainActivity.java patched with camera permission + WebChromeClient override"
+
+echo "==> 5d. Run generate_icons.sh to generate launcher icons"
+bash generate_icons.sh
 
 cd android
 
@@ -159,11 +245,12 @@ echo "✅ version.json written:"
 cat apk/version.json
 
 echo "==> 15. Install (uninstall any old differently-signed build first, to prevent 'package invalid')"
-if command -v adb &> /dev/null; then
+if command -v adb &> /dev/null && adb devices | grep -v "List of devices" | grep -q "device"; then
+    echo "Device detected, installing..."
     adb uninstall "$APP_ID" 2>/dev/null || true
     adb install -r "apk/$OUT_APK"
 else
-    echo "adb not found — APK is ready at: $(pwd)/apk/$OUT_APK"
+    echo "No adb devices connected or adb not found — skipping installation. APK is ready at: $(pwd)/apk/$OUT_APK"
 fi
 
 echo "✅ DONE. Signed APK: $(pwd)/apk/$OUT_APK"
