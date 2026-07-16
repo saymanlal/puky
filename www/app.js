@@ -1577,9 +1577,9 @@
             const wallet = new SaymanWallet(activeWallet.privateKey, activeWallet.chain);
             await wallet.initialize();
 
-            const addressRes = await apiFetch(`/address/${wallet.address}`);
+            const addressRes = await apiFetch(`/address/${wallet.address}/nonce`);
             const addressData = await addressRes.json();
-            const nonce = addressData.nonce || 0;
+            const nonce = addressData.nextNonce !== undefined ? addressData.nextNonce : (addressData.nonce || 0);
 
             const gasEstimate = await apiFetch(`/estimate-gas`, {
                 method: 'POST',
@@ -1787,9 +1787,9 @@
             const dec = networkDecimals || 100_000_000;
             const amount = Math.round(amountHuman * dec);
 
-            const addressRes = await apiFetch(`/address/${wallet.address}`);
+            const addressRes = await apiFetch(`/address/${wallet.address}/nonce`);
             const addressData = await addressRes.json();
-            const nonce = addressData.nonce || 0;
+            const nonce = addressData.nextNonce !== undefined ? addressData.nextNonce : (addressData.nonce || 0);
 
             const gasEstimate = await apiFetch(`/estimate-gas`, {
                 method: 'POST',
@@ -1808,7 +1808,7 @@
             const totalNeeded = amount + gasFeeBaseUnits;
             if (totalNeeded > (activeWallet.balance || 0)) {
                 hideLoading();
-                showToast(`Insufficient balance. Need ${formatBalance(totalNeeded)} SAYN (${formatBalance(amount)} stake + ${formatBalance(gasFeeBaseUnits)} gas)`, 'error');
+                showToast(`Insufficient balance. Need ${formatBalance(totalNeeded)} ${networkTicker} (${formatBalance(amount)} stake + ${formatBalance(gasFeeBaseUnits)} gas)`, 'error');
                 return;
             }
 
@@ -1852,7 +1852,7 @@
                         <i class="fas fa-check-circle"></i>
                         <strong>Stake Transaction Broadcast!</strong><br>
                         <small>TX ID: ${txHash.substring(0, 16)}...</small>
-                        <br><small>Gas Fee: ${formatBalance(gasFeeBaseUnits)} SAYN</small>
+                        <br><small>Gas Fee: ${formatBalance(gasFeeBaseUnits)} ${networkTicker}</small>
                     </div>
                 `;
 
@@ -1873,7 +1873,7 @@
                 saveState();
 
                 dom.stakeAmount.value = '';
-                showToast(`Staked ${formatBalance(amount)} SAYN (gas: ${formatBalance(gasFeeBaseUnits)} SAYN)`, 'success');
+                showToast(`Staked ${formatBalance(amount)} ${networkTicker} (gas: ${formatBalance(gasFeeBaseUnits)} ${networkTicker})`, 'success');
 
                 setTimeout(() => {
                     loadTransactionHistory();
@@ -1905,7 +1905,7 @@
         const lockBlocks = UNSTAKE_LOCK_BLOCKS;
         const lockTimeMinutes = Math.round((lockBlocks * blockTime) / 60);
 
-        if (!confirm(`Unstake ${formatBalance(unstakeAmount)} SAYN?\n\n⏳ Tokens will be locked for ${lockBlocks} blocks (~${lockTimeMinutes} minutes)`)) {
+        if (!confirm(`Unstake ${formatBalance(unstakeAmount)} ${networkTicker}?\n\n⏳ Tokens will be locked for ${lockBlocks} blocks (~${lockTimeMinutes} minutes)`)) {
             return;
         }
 
@@ -1915,9 +1915,9 @@
             const wallet = new SaymanWallet(activeWallet.privateKey, activeWallet.chain);
             await wallet.initialize();
 
-            const addressRes = await apiFetch(`/address/${wallet.address}`);
+            const addressRes = await apiFetch(`/address/${wallet.address}/nonce`);
             const addressData = await addressRes.json();
-            const nonce = addressData.nonce || 0;
+            const nonce = addressData.nextNonce !== undefined ? addressData.nextNonce : (addressData.nonce || 0);
 
             const gasEstimate = await apiFetch(`/estimate-gas`, {
                 method: 'POST',
@@ -1996,11 +1996,11 @@
                         <i class="fas fa-check-circle"></i>
                         <strong>Unstake Transaction Broadcast!</strong><br>
                         <small>🔒 Tokens locked for ${lockBlocks} blocks (~${lockTimeMinutes} minutes)</small>
-                        <br><small>Gas Fee: ${formatBalance(gasFeeBaseUnits)} SAYN</small>
+                        <br><small>Gas Fee: ${formatBalance(gasFeeBaseUnits)} ${networkTicker}</small>
                     </div>
                 `;
 
-                showToast(`Unstaked ${formatBalance(unstakeAmount)} SAYN (locked ${lockTimeMinutes} min)`, 'success');
+                showToast(`Unstaked ${formatBalance(unstakeAmount)} ${networkTicker} (locked ${lockTimeMinutes} min)`, 'success');
 
                 setTimeout(() => {
                     loadTransactionHistory();
