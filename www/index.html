@@ -617,12 +617,33 @@
                         <i class="fas fa-redo"></i> Reload
                     </button>
                 </div>
+                <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+                    <span class="settings-row-label" style="margin-bottom:2px;">
+                        <span class="stat-icon" style="background:rgba(16,217,138,0.1);color:var(--success);width:28px;height:28px;min-width:28px;border-radius:8px;">
+                            <i class="fas fa-network-wired"></i>
+                        </span>
+                        <span>
+                            <strong>Network Node</strong>
+                            <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:1px;">SAYMAN has no central server. Connect to any community node to go online.</span>
+                        </span>
+                    </span>
+                    <div style="display:flex;gap:8px;width:100%;">
+                        <input type="url" id="nodeUrlInput" placeholder="https://node.example.com" style="flex:1;padding:8px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--card-bg);color:var(--text);font-size:13px;" />
+                        <button class="btn btn-primary btn-sm" id="saveNodeUrlBtn"><i class="fas fa-plug"></i> Connect</button>
+                    </div>
+                    <div style="display:flex;gap:8px;width:100%;">
+                        <input type="url" id="faucetUrlInput" placeholder="Faucet URL (optional)" style="flex:1;padding:8px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--card-bg);color:var(--text);font-size:13px;" />
+                        <button class="btn btn-outline btn-sm" id="saveFaucetUrlBtn"><i class="fas fa-save"></i> Save</button>
+                    </div>
+                    <div id="nodeStatusBadge" style="font-size:11px;color:var(--text-muted);">⚪ Not connected — enter a node URL above to connect to the SAYMAN P2P network.</div>
+                </div>
+
                 <div class="settings-row">
                     <span class="settings-row-label">
                         <span class="stat-icon" style="background:rgba(79,124,255,0.1);color:var(--accent);width:28px;height:28px;min-width:28px;border-radius:8px;">
                             <i class="fas fa-tint"></i>
                         </span>
-                        Faucet (Get Test Tokens)
+                        Faucet (Get tSAYN / SAYN)
                     </span>
                     <button class="btn btn-primary btn-sm" id="settingsFaucetBtn">
                         <i class="fas fa-gift"></i> Claim
@@ -646,7 +667,7 @@
                         </span>
                         Download APK
                     </span>
-                    <a href="https://sayman.onrender.com/apk/puky.apk" class="btn btn-outline btn-sm">
+                    <a id="apkDownloadLink" href="#" class="btn btn-outline btn-sm" style="pointer-events:none;opacity:0.5;" title="Connect to a node to get the APK link">
                         <i class="fas fa-android"></i> Download
                     </a>
                 </div>
@@ -993,6 +1014,67 @@ window.addEventListener('DOMContentLoaded', function() {
     if (viewAll) viewAll.addEventListener('click', function(e) { e.preventDefault(); switchTab('detail'); setTimeout(()=>{ const btn=document.querySelector('[data-itab="history-tab"]'); if(btn) btn.click(); },100); });
     const settTheme = document.getElementById('settingsThemeBtn');
     if (settTheme) settTheme.addEventListener('click', function() { const tBtn = document.getElementById('themeToggleBtn'); if(tBtn) tBtn.click(); });
+
+    // ── Web4: Node URL Configuration ────────────────────────────────────────
+    // On page load, prefill node/faucet URL inputs from localStorage.
+    const nodeInput = document.getElementById('nodeUrlInput');
+    const faucetInput = document.getElementById('faucetUrlInput');
+    const nodeStatus = document.getElementById('nodeStatusBadge');
+    const apkLink = document.getElementById('apkDownloadLink');
+
+    function getCurrentNetwork() {
+        return localStorage.getItem('sayman_network') || 'testnet';
+    }
+    function refreshNodeStatus() {
+        const net = getCurrentNetwork();
+        const saved = localStorage.getItem('sayman_node_' + net) || '';
+        if (nodeInput) nodeInput.value = saved;
+        const savedFaucet = localStorage.getItem('sayman_faucet_' + net) || '';
+        if (faucetInput) faucetInput.value = savedFaucet;
+        if (nodeStatus) {
+            if (saved) {
+                nodeStatus.innerHTML = '🟢 Connected to: <code style="font-size:11px;">' + saved + '</code>';
+                nodeStatus.style.color = 'var(--success)';
+                // Update APK link dynamically from the configured node
+                if (apkLink) {
+                    apkLink.href = saved.replace(/\/$/, '') + '/apk/puky.apk';
+                    apkLink.style.pointerEvents = '';
+                    apkLink.style.opacity = '';
+                }
+            } else {
+                nodeStatus.innerHTML = '⚪ Not connected &mdash; enter a community node URL above to connect to the SAYMAN P2P network.';
+                nodeStatus.style.color = 'var(--text-muted)';
+            }
+        }
+    }
+    refreshNodeStatus();
+
+    const saveNodeBtn = document.getElementById('saveNodeUrlBtn');
+    if (saveNodeBtn && nodeInput) {
+        saveNodeBtn.addEventListener('click', function() {
+            const net = getCurrentNetwork();
+            const url = (nodeInput.value || '').trim().replace(/\/$/, '');
+            if (url && !url.startsWith('http')) {
+                alert('Node URL must start with http:// or https://');
+                return;
+            }
+            localStorage.setItem('sayman_node_' + net, url);
+            refreshNodeStatus();
+            // Reload app to reconnect
+            if (url) window.location.reload();
+        });
+    }
+
+    const saveFaucetBtn = document.getElementById('saveFaucetUrlBtn');
+    if (saveFaucetBtn && faucetInput) {
+        saveFaucetBtn.addEventListener('click', function() {
+            const net = getCurrentNetwork();
+            const url = (faucetInput.value || '').trim().replace(/\/$/, '');
+            localStorage.setItem('sayman_faucet_' + net, url);
+            refreshNodeStatus();
+            alert('Faucet URL saved.');
+        });
+    }
 });
 </script>
 

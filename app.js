@@ -62,15 +62,39 @@
     let latestApkSha = '';
     let updateCheckInterval = null;
 
+    // ── Web4 Peer Discovery ──────────────────────────────────────────────────
+    // SAYMAN is a decentralised network. There is NO mandatory SAYMAN-operated
+    // backend. The wallet connects to community-run nodes. Users can provide
+    // their own node URL, which is persisted in localStorage. If none is set,
+    // the wallet operates in offline/read-only mode until a node is configured.
+    // Symbol: tSAYN on testnet, SAYN on mainnet.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function getSavedNodeUrl(network) {
+        const key = `sayman_node_${network}`;
+        return localStorage.getItem(key) || '';
+    }
+    function saveNodeUrl(network, url) {
+        localStorage.setItem(`sayman_node_${network}`, url);
+    }
+    function getSavedFaucetUrl(network) {
+        return localStorage.getItem(`sayman_faucet_${network}`) || '';
+    }
+    function saveFaucetUrl(network, url) {
+        localStorage.setItem(`sayman_faucet_${network}`, url);
+    }
+
     const chainConfigs = {
         'sayman': {
             name: 'Sayman',
-            symbol: 'SAYN',
+            symbol: 'tSAYN',          // testnet token
+            mainnetSymbol: 'SAYN',    // mainnet token
+            testnetSymbol: 'tSAYN',
             decimals: 8,
             icon: 'fa-wallet',
             color: '#4f6ef7',
-            rpc: 'https://sayman.onrender.com/api',
-            explorer: 'https://sayman.onrender.com',
+            rpc: '',   // No hardcoded endpoint — user-configured via node settings
+            explorer: '',
             active: true,
             faucet: true
         },
@@ -139,16 +163,18 @@
         }
     };
 
+    // networkEndpoints: dynamically resolved from localStorage (user-configured node).
+    // Returns empty array if no node is configured — wallet will prompt user to add a node.
     const networkEndpoints = {
-        'testnet': ['https://sayman.onrender.com/api', 'https://sayman.up.railway.app/api'],
-        'public-testnet': ['https://sayman.onrender.com/api', 'https://sayman.up.railway.app/api'],
-        'mainnet': ['https://sayman.onrender.com/api', 'https://sayman.up.railway.app/api']
+        get 'testnet'() { const u = getSavedNodeUrl('testnet'); return u ? [u + '/api'] : []; },
+        get 'public-testnet'() { const u = getSavedNodeUrl('public-testnet'); return u ? [u + '/api'] : []; },
+        get 'mainnet'() { const u = getSavedNodeUrl('mainnet'); return u ? [u + '/api'] : []; }
     };
 
     const networkNames = {
-        'testnet': 'Testnet',
-        'public-testnet': 'Public Testnet',
-        'mainnet': 'Mainnet'
+        'testnet': 'Testnet (tSAYN)',
+        'public-testnet': 'Public Testnet (tSAYN)',
+        'mainnet': 'Mainnet (SAYN)'
     };
 
     const networkTypes = {
@@ -157,9 +183,16 @@
         'mainnet': 'mainnet'
     };
 
+    // Ticker symbol based on network
+    const networkSymbols = {
+        'testnet': 'tSAYN',
+        'public-testnet': 'tSAYN',
+        'mainnet': 'SAYN'
+    };
+
     const faucetEndpoints = {
-        'testnet': ['https://sayman.onrender.com/api/faucet', 'https://sayman.up.railway.app/api/faucet'],
-        'public-testnet': ['https://sayman.onrender.com/api/faucet', 'https://sayman.up.railway.app/api/faucet'],
+        get 'testnet'() { const u = getSavedFaucetUrl('testnet'); return u ? [u] : []; },
+        get 'public-testnet'() { const u = getSavedFaucetUrl('public-testnet'); return u ? [u] : []; },
         'mainnet': []
     };
 
@@ -282,22 +315,28 @@
     let activeEndpointIndex = 0;
     let networkDecimals = 100_000_000;
     let networkMinStake = 1_000_000_000;
-    let networkTicker = 'SAYN';
+    let networkTicker = 'tSAYN'; // default; updated per-network below
 
-    function getApiBase() { 
+    function getApiBase() {
         const eps = networkEndpoints[currentNetwork];
-        return Array.isArray(eps) ? eps[activeEndpointIndex] : eps;
+        return Array.isArray(eps) && eps.length > 0 ? eps[activeEndpointIndex] : null;
     }
     function getNetworkType() { return networkTypes[currentNetwork]; }
     function getNetworkName() { return networkNames[currentNetwork]; }
-    function getFaucetUrl() { 
+    function getNetworkSymbol() { return networkSymbols[currentNetwork] || 'tSAYN'; }
+    function getFaucetUrl() {
         const eps = faucetEndpoints[currentNetwork];
         if (!eps || (Array.isArray(eps) && eps.length === 0)) return null;
-        return Array.isArray(eps) ? eps[activeEndpointIndex] : eps;
+        return Array.isArray(eps) ? eps[0] : eps;
     }
     function getExplorerUrl() {
-        const base = getApiBase() || 'https://sayman.onrender.com/api';
-        return base.replace('/api', '');
+        // Explorer is the node itself — any SAYMAN node exposes the explorer frontend.
+        // No separate SAYMAN-operated explorer required.
+        const base = getApiBase();
+        return base ? base.replace(/\/api\/?$/, '') : null;
+    }
+    function hasNodeConfigured() {
+        return !!getApiBase();
     }
 
     async function apiFetch(pathOrUrl, options = {}) {
@@ -319,12 +358,10 @@
             endpoints = Array.isArray(baseEndpoints) ? baseEndpoints : [baseEndpoints].filter(Boolean);
         }
 
-        // Always try the PRIMARY endpoint (sayman.onrender.com = index 0) first.
-        // Only move to a standby peer if primary is unreachable.
-        // This keeps all reads canonical and prevents stale data from lagging peers.
+        // Try each community-run peer in order. There is no primary — any node
+        // providing valid responses is authoritative for that request.
         const orderedIndices = [];
-        orderedIndices.push(0); // primary always first
-        for (let i = 1; i < endpoints.length; i++) orderedIndices.push(i);
+        for (let i = 0; i < endpoints.length; i++) orderedIndices.push(i);
         
         for (const idx of orderedIndices) {
             if (idx >= endpoints.length) continue;
@@ -361,12 +398,19 @@
     }
 
     async function fetchNetworkConfig() {
+        // Always derive ticker from the network map first (tSAYN testnet, SAYN mainnet).
+        networkTicker = getNetworkSymbol();
         try {
+            if (!hasNodeConfigured()) {
+                console.warn('⚠️ No SAYMAN node configured. Wallet is in offline mode. Go to Settings → Node to configure a node.');
+                return;
+            }
             const res = await apiFetch('/network');
             const data = await res.json();
             if (data) {
                 if (data.decimals) networkDecimals = data.decimals;
                 if (data.minStake !== undefined) networkMinStake = data.minStake;
+                // Prefer server ticker but validate against expected symbol for this network
                 if (data.ticker) networkTicker = data.ticker;
                 if (data.unstakeDelay !== undefined) UNSTAKE_LOCK_BLOCKS = data.unstakeDelay;
                 console.log(`🌐 Loaded network config. Decimals: ${networkDecimals}, minStake: ${networkMinStake}, ticker: ${networkTicker}, unstakeDelay: ${UNSTAKE_LOCK_BLOCKS}`);
@@ -3885,7 +3929,8 @@
         // APK Update check
         async function checkForUpdates() {
             try {
-                const baseRpc = networkEndpoints[currentNetwork]?.[0] || 'https://sayman.onrender.com/api';
+                const baseRpc = networkEndpoints[currentNetwork]?.[0] || null;
+                if (!baseRpc) { console.warn('No node configured for network:', currentNetwork); }
                 const nodeUrl = baseRpc.replace('/api', '');
                 const res = await window.fetch(`${nodeUrl}/apk/version.json`);
                 if (res.ok) {
@@ -3983,7 +4028,7 @@
             return;
         }
         try {
-            const apiBase = getApiBase() || 'https://sayman.onrender.com/api';
+            const apiBase = getApiBase();
             const chainRes = await fetch(`${apiBase}/wallet/chain`);
             const chainInfo = await chainRes.json();
 
