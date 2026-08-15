@@ -327,7 +327,9 @@
 
     function getApiBase() {
         const eps = networkEndpoints[currentNetwork];
-        return Array.isArray(eps) && eps.length > 0 ? eps[activeEndpointIndex] : null;
+        if (!Array.isArray(eps) || eps.length === 0) return null;
+        if (activeEndpointIndex >= eps.length) activeEndpointIndex = 0;
+        return eps[activeEndpointIndex];
     }
     function getNetworkType() { return networkTypes[currentNetwork]; }
     function getNetworkName() { return networkNames[currentNetwork]; }
@@ -344,7 +346,8 @@
         return base ? base.replace(/\/api\/?$/, '') : null;
     }
     function hasNodeConfigured() {
-        return !!getApiBase();
+        const eps = networkEndpoints[currentNetwork];
+        return Array.isArray(eps) && eps.length > 0;
     }
 
     async function apiFetch(pathOrUrl, options = {}) {
@@ -368,49 +371,68 @@
 
         // Try each community-run peer in order. There is no primary — any node
         // providing valid responses is authoritative for that request.
-        const orderedIndices = [];
-        for (let i = 0; i < endpoints.length; i++) orderedIndices.push(i);
-        
-        for (const idx of orderedIndices) {
-            if (idx >= endpoints.length) continue;
-            const base = endpoints[idx];
-            
-            let url = base;
-            if (!pathOrUrl.startsWith('http://') && !pathOrUrl.startsWith('https://')) {
-                url = `${base}${pathOrUrl}`;
-            } else if (isFaucet) {
-                url = base;
-            }
-            
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 8000);
+        for (let retry = 0; retry < 3; retry++) {
+            for (let idx = 0; idx < endpoints.length; idx++) {
+                const base = endpoints[idx];
                 
-                const res = await window.fetch(url, {
-                    ...options,
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                
-                if (res.ok || res.status < 500) {
-                    activeEndpointIndex = idx;
-                    return res;
+                let url = base;
+                if (!pathOrUrl.startsWith('http://') && !pathOrUrl.startsWith('https://')) {
+                    url = `${base}${pathOrUrl}`;
+                } else if (isFaucet) {
+                    url = base;
                 }
-                console.warn(`⚠️ Peer ${base} returned status ${res.status}. Trying next peer...`);
-            } catch (err) {
-                lastError = err;
-                console.warn(`⚠️ Failed to connect to ${base}: ${err.message}. Falling back to next peer...`);
+                
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 8000);
+                    
+                    const res = await window.fetch(url, {
+                        ...options,
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                    
+                    if (res.ok || res.status < 500) {
+                        activeEndpointIndex = idx;
+                        return res;
+                    }
+                    console.warn(`⚠️ Peer ${base} returned status ${res.status}. Trying next peer...`);
+                } catch (err) {
+                    lastError = err;
+                    console.warn(`⚠️ Failed to connect to ${base}: ${err.message}. Falling back to next peer...`);
+                }
+            }
+            if (retry < 2) {
+                await new Promise(r => setTimeout(r, 1000));
             }
         }
+        showToast('No SAYMAN node available. Configure your node in Settings → Network Node.', 'error');
         throw lastError;
     }
 
+    function setNetworkStatus(status) {
+        const dot = document.getElementById('networkStatusDot');
+        const text = document.getElementById('networkStatusText');
+        if (!dot || !text) return;
+        if (status === 'connected') {
+            dot.style.background = '#10d98a';
+            text.innerText = 'Connected';
+        } else if (status === 'offline') {
+            dot.style.background = '#ff4d4d';
+            text.innerText = 'Offline';
+        } else {
+            dot.style.background = '#ffb830';
+            text.innerText = 'Connecting';
+        }
+    }
+
     async function fetchNetworkConfig() {
-        // Always derive ticker from the network map first (tSAYN testnet, SAYN mainnet).
-        networkTicker = getNetworkSymbol();
+        networkTicker = currentNetwork === 'mainnet' ? 'SAYN' : 'tSAYN';
+        setNetworkStatus('connecting');
         try {
             if (!hasNodeConfigured()) {
                 console.warn('⚠️ No SAYMAN node configured. Wallet is in offline mode. Go to Settings → Node to configure a node.');
+                setNetworkStatus('offline');
                 return;
             }
             const res = await apiFetch('/network');
@@ -418,13 +440,13 @@
             if (data) {
                 if (data.decimals) networkDecimals = data.decimals;
                 if (data.minStake !== undefined) networkMinStake = data.minStake;
-                // Prefer server ticker but validate against expected symbol for this network
-                if (data.ticker) networkTicker = data.ticker;
                 if (data.unstakeDelay !== undefined) UNSTAKE_LOCK_BLOCKS = data.unstakeDelay;
+                setNetworkStatus('connected');
                 console.log(`🌐 Loaded network config. Decimals: ${networkDecimals}, minStake: ${networkMinStake}, ticker: ${networkTicker}, unstakeDelay: ${UNSTAKE_LOCK_BLOCKS}`);
                 updateDynamicNetworkUI();
             }
         } catch (e) {
+            setNetworkStatus('offline');
             console.error('Error fetching network config:', e);
         }
     }
@@ -4069,5 +4091,49 @@
     } else {
         init();
     }
+
+    // --- REWARDS ---
+    window.loadRewardsTab = async function() {
+        const nodeId = localStorage.getItem('sayman_browser_node_id') || 'Not set';
+        const pendingRewards = parseFloat(localStorage.getItem('sayman_posa_rewards') || '0');
+        
+        const rNode = document.getElementById('rewardsNodeId');
+        if (rNode) rNode.innerText = nodeId;
+        
+        const rPend = document.getElementById('rewardsPending');
+        if (rPend) rPend.innerText = pendingRewards.toFixed(2);
+    };
+
+    window.claimContributorRewards = async function() {
+        const nodeId = localStorage.getItem('sayman_browser_node_id');
+        const walletAddress = activeWallet ? activeWallet.address : null;
+        const estimatedReward = parseFloat(localStorage.getItem('sayman_posa_rewards') || '0');
+        
+        if (!nodeId || !walletAddress) {
+            showToast('Connect your wallet first', 'error');
+            return;
+        }
+        
+        const apiBase = getApiBase();
+        if (!apiBase) { showToast('No node connected', 'error'); return; }
+        
+        try {
+            const res = await window.fetch(`${apiBase}/contributor/claim`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nodeId, walletAddress, estimatedReward })
+            });
+            const data = await res.json();
+            if (data.txHash) {
+                showToast(`Reward claim submitted! TX: ${data.txHash.slice(0,16)}...`, 'success');
+                localStorage.setItem('sayman_posa_rewards', '0'); // reset after claim
+                window.loadRewardsTab();
+            } else {
+                showToast(data.error || 'Claim failed', 'error');
+            }
+        } catch (e) {
+            showToast('Network error: ' + e.message, 'error');
+        }
+    };
 
 })();

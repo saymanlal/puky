@@ -1,12 +1,12 @@
 {
   "appId": "com.krushn.pukywallet",
   "appName": "PUKY-Wallet",
-  "buildDate": "2026-07-17T09:48:07Z",
+  "buildDate": "2026-08-15T18:30:36Z",
   "targetSdk": 35,
   "compileSdk": 35,
   "jdkUsed": "23",
   "apkFile": "puky.apk",
-  "apkSha256": "77fc05fa8eaf910e30ceedb99ed5e42e198db8eb2af4e2d33ac76dab7e1de44f",
+  "apkSha256": "5a2cf3400650f7f049a66ef84aa06316874f6923006cfa900912e810321639b9",
   "signingCertSha256": "09:28:5E:F2:D2:46:4A:01:6A:20:57:66:49:55:03:C1:15:81:09:32:58:91:10:CE:9D:F1:BC:39:4D:25:1B:15",
   "keystoreAlias": "pukyrelease"
 }

@@ -74,6 +74,12 @@
             </div>
         </div>
         <div class="navbar-actions">
+            <!-- NETWORK STATUS INDICATOR -->
+            <div id="networkStatusIndicator" style="display:flex; align-items:center; margin-right:12px;" title="Network Status">
+                <div id="networkStatusDot" style="width:10px; height:10px; border-radius:50%; background:#ffb830; margin-right:6px;"></div>
+                <span id="networkStatusText" style="font-size:12px; font-weight:600; color:var(--text);">Connecting</span>
+            </div>
+            
             <select id="networkSelect" class="network-select">
                 <option value="testnet">🔵 Testnet</option>
                 <option value="public-testnet">🟣 Public</option>
@@ -504,6 +510,31 @@
             </div>
         </div>
 
+        <!-- ══ PAGE: REWARDS ══ -->
+        <div class="page" id="page-rewards">
+            <p class="section-title">Contributor Rewards</p>
+            <div class="card">
+                <div style="text-align:center; padding:16px;">
+                    <i class="fas fa-gift" style="font-size:3rem;color:#4f7cff;margin-bottom:12px;"></i>
+                    <h3 style="margin-bottom:8px;">Node Status</h3>
+                    <p style="color:var(--text-2);margin-bottom:12px;">Node ID: <span id="rewardsNodeId" style="font-weight:bold;color:var(--text);">Not set</span></p>
+                    <p style="color:var(--text-2);margin-bottom:12px;">Pending Rewards: <span id="rewardsPending" style="font-size:1.5rem;font-weight:bold;color:var(--accent);">0.00</span> SAYN</p>
+                    
+                    <a href="javascript:void(0)" onclick="window.open(window.getExplorerUrl ? window.getExplorerUrl()+'/storage' : '#', '_blank')" style="display:block;margin-bottom:24px;color:var(--accent);">
+                        <i class="fas fa-external-link-alt"></i> View Explorer Storage &amp; Mining
+                    </a>
+                    
+                    <button class="btn btn-primary full-width mb-12" onclick="if(window.claimContributorRewards) window.claimContributorRewards()">
+                        <i class="fas fa-hand-holding-usd"></i> Claim Rewards
+                    </button>
+                    
+                    <button class="btn btn-outline full-width" onclick="window.open('https://frontend-zeta-lac-36.vercel.app', '_blank')">
+                        <i class="fas fa-server"></i> Become a Contributor
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- ══ PAGE: SETTINGS/PROFILE ══ -->
         <div class="page" id="page-profile">
             <p class="section-title">Profile &amp; Settings</p>
@@ -705,6 +736,10 @@
         <button class="tab-item" id="tab-send" onclick="switchTab('send')">
             <i class="fas fa-exchange-alt"></i>
             <span>Transfer</span>
+        </button>
+        <button class="tab-item" id="tab-rewards" onclick="switchTab('rewards')">
+            <i class="fas fa-gift"></i>
+            <span>Rewards</span>
         </button>
         <button class="tab-item" id="tab-profile" onclick="switchTab('profile')">
             <i class="fas fa-user"></i>
@@ -975,6 +1010,10 @@ function switchTab(name) {
     if (tab) tab.classList.add('active');
     const ms = document.querySelector('.main-scroll');
     if (ms) ms.scrollTop = 0;
+    
+    if (name === 'rewards' && typeof window.loadRewardsTab === 'function') {
+        window.loadRewardsTab();
+    }
 }
 
 // Inner tab panels (Send/Receive/Stake, History/Analytics)
