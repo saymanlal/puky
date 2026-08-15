@@ -70,6 +70,14 @@
     // Symbol: tSAYN on testnet, SAYN on mainnet.
     // ─────────────────────────────────────────────────────────────────────────
 
+    const WALLET_COMMUNITY_SEEDS = [
+        'https://sayman-blockchain.onrender.com',
+        'https://sayman.up.railway.app',
+        'https://sayman.onrender.com',
+        'http://localhost:3000',
+        'http://localhost:10000'
+    ];
+
     function getSavedNodeUrl(network) {
         const key = `sayman_node_${network}`;
         return localStorage.getItem(key) || '';
@@ -93,8 +101,8 @@
             decimals: 8,
             icon: 'fa-wallet',
             color: '#4f6ef7',
-            rpc: '',   // No hardcoded endpoint — user-configured via node settings
-            explorer: '',
+            rpc: '',   // Auto-discovered via community node mesh
+            explorer: 'https://frontend-zeta-lac-36.vercel.app',
             active: true,
             faucet: true
         },
