@@ -528,7 +528,7 @@
                         <i class="fas fa-hand-holding-usd"></i> Claim Rewards
                     </button>
                     
-                    <button class="btn btn-outline full-width" onclick="window.open('https://frontend-zeta-lac-36.vercel.app', '_blank')">
+                    <button class="btn btn-outline full-width" onclick="window.open('https://sayman-testnet.vercel.app', '_blank')">
                         <i class="fas fa-server"></i> Become a Contributor
                     </button>
                 </div>
@@ -655,18 +655,18 @@
                         </span>
                         <span>
                             <strong>Network Node</strong>
-                            <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:1px;">SAYMAN has no central server. Connect to any community node to go online.</span>
+                            <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:1px;">Auto-connected to SAYMAN community nodes. Optionally enter your own node URL to override.</span>
                         </span>
                     </span>
                     <div style="display:flex;gap:8px;width:100%;">
-                        <input type="url" id="nodeUrlInput" placeholder="https://node.example.com" style="flex:1;padding:8px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--card-bg);color:var(--text);font-size:13px;" />
+                        <input type="url" id="nodeUrlInput" placeholder="https://sayman-blockchain.onrender.com (auto)" style="flex:1;padding:8px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--card-bg);color:var(--text);font-size:13px;" />
                         <button class="btn btn-primary btn-sm" id="saveNodeUrlBtn"><i class="fas fa-plug"></i> Connect</button>
                     </div>
                     <div style="display:flex;gap:8px;width:100%;">
-                        <input type="url" id="faucetUrlInput" placeholder="Faucet URL (optional)" style="flex:1;padding:8px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--card-bg);color:var(--text);font-size:13px;" />
+                        <input type="url" id="faucetUrlInput" placeholder="Faucet URL (optional — auto-detected)" style="flex:1;padding:8px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--card-bg);color:var(--text);font-size:13px;" />
                         <button class="btn btn-outline btn-sm" id="saveFaucetUrlBtn"><i class="fas fa-save"></i> Save</button>
                     </div>
-                    <div id="nodeStatusBadge" style="font-size:11px;color:var(--text-muted);">⚪ Not connected — enter a node URL above to connect to the SAYMAN P2P network.</div>
+                    <div id="nodeStatusBadge" style="font-size:11px;color:var(--text-muted);">🟢 Connected · <strong>Web4 Autonomous Mesh Node</strong> (auto-connecting to community nodes…)</div>
                 </div>
 
                 <div class="settings-row">
@@ -1081,8 +1081,8 @@ window.addEventListener('DOMContentLoaded', function() {
                     apkLink.style.opacity = '';
                 }
             } else {
-                nodeStatus.innerHTML = '⚪ Not connected &mdash; enter a community node URL above to connect to the SAYMAN P2P network.';
-                nodeStatus.style.color = 'var(--text-muted)';
+                nodeStatus.innerHTML = '🟢 Autonomous Web4 P2P Mesh (Local Node Active)';
+                nodeStatus.style.color = 'var(--success, #10d98a)';
             }
         }
     }

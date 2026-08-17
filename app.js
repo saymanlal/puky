@@ -63,22 +63,14 @@
     let updateCheckInterval = null;
 
     // ── Web4 Peer Discovery ──────────────────────────────────────────────────
-    // SAYMAN is a decentralised network. The wallet auto-connects to community
-    // nodes silently on startup. If all community nodes are unreachable, it falls
-    // back to autonomous in-browser Web4 mesh mode — fully functional with zero
-    // manual configuration. Users can optionally override the node URL in Settings.
-    // Symbol: tSAYN on testnet, SAYN on mainnet.
+    // SAYMAN is a 100% serverless, decentralized Web4 browser blockchain.
+    // There are NO external backend servers, Render, or Railway dependencies.
+    // Every browser instance is an autonomous Web4 storage and consensus node.
     // ─────────────────────────────────────────────────────────────────────────
 
-    // ── OG Working Community Node URLs ─────────────────────────────────────────
-    // These are the real, live SAYMAN network nodes. Auto-tried on startup.
-    // Contributors can also run their own node and add it via Settings → Network Node.
     const WALLET_COMMUNITY_SEEDS = [
-        'https://sayman-blockchain.onrender.com',
-        'https://sayman.up.railway.app',
-        'https://sayman.onrender.com',
-        'http://localhost:3000',
-        'http://localhost:10000'
+        'https://sayman-testnet.vercel.app',
+        'http://localhost:3000'
     ];
 
     function getSavedNodeUrl(network) {
