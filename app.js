@@ -105,7 +105,7 @@
             icon: 'fa-wallet',
             color: '#4f6ef7',
             rpc: '',   // Auto-discovered via community node mesh
-            explorer: 'https://sayman-explorer.vercel.app',
+            explorer: 'https://sayman-testnet.vercel.app',
             active: true,
             faucet: true
         },
