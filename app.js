@@ -1319,9 +1319,12 @@
 
             if (data.balance !== undefined) {
                 const b = Number(data.balance);
-                if (!hasPendingBalanceTx) {
-                    activeWallet.balance = isFinite(b) ? (b + (activeWallet.uncreditedBalance || 0)) : activeWallet.balance;
+                if (!hasPendingBalanceTx && isFinite(b)) {
+                    activeWallet.balance = b + (activeWallet.uncreditedBalance || 0);
+                    setWalletBalance(activeWallet.address, activeWallet.balance);
                 }
+            } else if (activeWallet.balance !== undefined) {
+                setWalletBalance(activeWallet.address, activeWallet.balance);
             }
             if (data.stake !== undefined) {
                 if (!hasPendingStake && !hasPendingUnstake) {
@@ -2311,15 +2314,26 @@
 
                 // Server should credit the wallet; we'll also optimistically update
                 activeWallet.balance = (activeWallet.balance || 0) + faucetAmount;
-                activeWallet.transactions.push({
+                setWalletBalance(activeWallet.address, activeWallet.balance);
+                const newTx = {
+                    id: txHash,
                     type: 'FAUCET',
                     amount: faucetAmount,
                     time: Date.now(),
+                    timestamp: Date.now(),
                     txId: txHash,
-                    blockNumber: currentBlock,
+                    blockNumber: currentBlock || 1,
                     data: { from: 'faucet', to: activeWallet.address, amount: faucetAmount },
                     pending: true
-                });
+                };
+                activeWallet.transactions.push(newTx);
+                addWalletTx(activeWallet.address, newTx);
+                
+                try {
+                    const globalTxs = JSON.parse(localStorage.getItem('sayman_global_p2p_txs') || '[]');
+                    globalTxs.unshift(newTx);
+                    localStorage.setItem('sayman_global_p2p_txs', JSON.stringify(globalTxs.slice(0, 200)));
+                } catch(e) {}
                 saveState();
                 render();
 
@@ -4118,6 +4132,56 @@
             activeWallet = wallets[0];
         }
         render();
+
+        // Check for Reward Claim query params from Explorer
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('claim') === 'true') {
+                const claimAmount = parseFloat(urlParams.get('pendingRewards') || '0');
+                const nodeId = urlParams.get('nodeId') || 'Storage Contributor';
+                if (claimAmount > 0) {
+                    if (!activeWallet && wallets.length > 0) {
+                        activeWallet = wallets[0];
+                    }
+                    if (activeWallet) {
+                        const targetAddr = activeWallet.address;
+                        const currentBal = getWalletBalance(targetAddr) || 0;
+                        setWalletBalance(targetAddr, currentBal + claimAmount);
+                        activeWallet.balance = (activeWallet.balance || 0) + claimAmount;
+                        
+                        const txHash = 'tx_reward_' + Date.now().toString(16);
+                        const claimTx = {
+                            id: txHash,
+                            type: 'REWARD',
+                            timestamp: Date.now(),
+                            time: Date.now(),
+                            amount: claimAmount,
+                            data: { from: nodeId, to: targetAddr, amount: claimAmount },
+                            gasUsed: 0,
+                            gasPrice: 0,
+                            blockIndex: getWalletMeshHeight()
+                        };
+                        addWalletTx(targetAddr, claimTx);
+                        activeWallet.transactions.unshift(claimTx);
+                        
+                        // Save in global mesh transaction ledger for Explorer visibility
+                        try {
+                            const globalTxs = JSON.parse(localStorage.getItem('sayman_global_p2p_txs') || '[]');
+                            globalTxs.unshift(claimTx);
+                            localStorage.setItem('sayman_global_p2p_txs', JSON.stringify(globalTxs.slice(0, 200)));
+                        } catch(e) {}
+
+                        saveState();
+                        render();
+                        showToast(`✓ Claimed ${claimAmount} tSAYN storage rewards into ${activeWallet.name}!`, 'success');
+                    } else {
+                        showToast(`Create or select a wallet first to receive your ${claimAmount} tSAYN reward!`, 'warning');
+                    }
+                }
+            }
+        } catch(e) {
+            console.warn('Error processing claim params:', e);
+        }
 
         // 4. Run network operations in the background
         (async () => {
