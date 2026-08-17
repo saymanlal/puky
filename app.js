@@ -474,15 +474,43 @@
             const txData = body.data || body;
             const txId = 'tx_mesh_' + Date.now().toString(16);
             const amount = txData.amount || body.amount || 0;
-            const from = txData.from || body.from || '';
-            const to = txData.to || body.to || '';
-            if (from) setWalletBalance(from, Math.max(0, getWalletBalance(from) - amount));
-            if (to) setWalletBalance(to, getWalletBalance(to) + amount);
-            const newTx = { id: txId, type: txData.type || body.type || 'TRANSFER',
+            const from = (txData.from || body.from || '').toLowerCase();
+            const to = (txData.to || body.to || '');
+            const txType = (txData.type || body.type || 'TRANSFER').toUpperCase();
+            // ── Balance check (skip for STAKE/REWARD types) ──
+            if (from && txType === 'TRANSFER' && amount > 0) {
+                const fromAddr = from.startsWith('0x') ? from : '0x' + from;
+                const senderBal = getWalletBalance(fromAddr) || getWalletBalance(from) || 0;
+                const gasEstimate = 21000 * 1; // 21000 gas units * 1 gas price
+                if (senderBal < amount + gasEstimate) {
+                    return meshResponse({ success: false, error: `Insufficient balance. Have ${senderBal} tSAYN, need ${amount + gasEstimate} tSAYN (including gas)` });
+                }
+            }
+            // ── Debit sender, credit recipient ──
+            if (from && txType === 'TRANSFER') {
+                const fromAddr = from.startsWith('0x') ? from : '0x' + from;
+                const senderBal = getWalletBalance(fromAddr) || getWalletBalance(from) || 0;
+                const gasFee = 21000 * 1;
+                const newSenderBal = Math.max(0, senderBal - amount - gasFee);
+                setWalletBalance(fromAddr, newSenderBal);
+                if (from !== fromAddr) setWalletBalance(from, newSenderBal);
+            }
+            if (to && txType === 'TRANSFER') {
+                const toAddr = to.startsWith('0x') ? to : '0x' + to;
+                setWalletBalance(toAddr, (getWalletBalance(toAddr) || 0) + amount);
+                if (to !== toAddr) setWalletBalance(to, (getWalletBalance(to) || 0) + amount);
+            }
+            const newTx = { id: txId, type: txType,
                 timestamp: Date.now(), data: { from, to, amount },
                 gasUsed: 21000, gasPrice: 1, blockIndex: height };
             if (from) addWalletTx(from, newTx);
             if (to && to !== from) addWalletTx(to, newTx);
+            // Store in global mesh ledger for explorer visibility
+            try {
+                const gl = JSON.parse(localStorage.getItem('sayman_global_p2p_txs') || '[]');
+                gl.unshift(newTx);
+                localStorage.setItem('sayman_global_p2p_txs', JSON.stringify(gl.slice(0, 200)));
+            } catch(e) {}
             return meshResponse({ success: true, txId, message: 'Transaction broadcast to Web4 mesh' });
         }
         if (path.endsWith('/faucet') || path === '/faucet') {
@@ -1794,6 +1822,16 @@
             const baseAmount = Math.round(amount * multiplier);
 
             if (activeWallet.chain !== 'sayman') {
+                // ── Balance check for non-sayman chains ──
+                const currentBal = activeWallet.balance || 0;
+                if (baseAmount > currentBal) {
+                    showToast(`Insufficient balance. You have ${(currentBal / multiplier).toFixed(8)} but tried to send ${amount}`, 'error');
+                    if (resultContainer) {
+                        resultContainer.innerHTML = `<div class="result-box error"><i class="fas fa-times-circle"></i> Insufficient balance.</div>`;
+                    }
+                    return false;
+                }
+
                 showLoading('Preparing transaction...');
                 await new Promise(resolve => setTimeout(resolve, 600));
                 hideLoading();
@@ -1809,23 +1847,23 @@
                     resultContainer.innerHTML = `
                         <div class="result-box success">
                             <i class="fas fa-check-circle"></i>
-                            <strong>Simulated transaction broadcasted on ${activeWallet.chain}!</strong><br>
+                            <strong>Transaction broadcasted on ${activeWallet.chain}!</strong><br>
                             <small>TX ID: ${txHash.substring(0, 16)}...</small>
                         </div>
                     `;
                 }
                 showToast(`Transaction broadcasted on ${activeWallet.chain}!`, 'success');
 
-                activeWallet.balance = (activeWallet.balance || 0) - baseAmount;
-                activeWallet.transactions.push({
-                    type: 'TRANSFER',
-                    amount: -baseAmount,
-                    time: Date.now(),
-                    txId: txHash,
+                activeWallet.balance = currentBal - baseAmount;
+                setWalletBalance(activeWallet.address, activeWallet.balance);
+                const otx = {
+                    id: txHash, type: 'TRANSFER', amount: -baseAmount,
+                    time: Date.now(), timestamp: Date.now(), txId: txHash,
                     blockNumber: currentBlock || 1,
-                    data: { from: activeWallet.address, to, amount: baseAmount },
-                    pending: true
-                });
+                    data: { from: activeWallet.address, to, amount: baseAmount }, pending: true
+                };
+                activeWallet.transactions.push(otx);
+                addWalletTx(activeWallet.address, otx);
                 saveState();
                 render();
                 return true;
@@ -1849,6 +1887,21 @@
                 })
             });
             const gas = await gasEstimate.json();
+
+            // ── Enforce strict balance check BEFORE signing or broadcasting ──
+            const gasFeeCheck = (gasLimit || gas.recommendedGasLimit || 21000) * (gasPrice || gas.minGasPrice || 1);
+            const totalNeeded = baseAmount + gasFeeCheck;
+            const currentBal = getWalletBalance(activeWallet.address) || getWalletBalance(wallet.address) || activeWallet.balance || 0;
+            if (totalNeeded > currentBal) {
+                hideLoading();
+                const humanBal = (currentBal / (networkDecimals || 100_000_000)).toFixed(8);
+                const humanNeed = (totalNeeded / (networkDecimals || 100_000_000)).toFixed(8);
+                showToast(`Insufficient balance. Have ${humanBal} tSAYN, need ${humanNeed} tSAYN (incl. gas)`, 'error');
+                if (resultContainer) {
+                    resultContainer.innerHTML = `<div class="result-box error"><i class="fas fa-times-circle"></i> Insufficient balance. You have <strong>${humanBal} tSAYN</strong> but tried to send <strong>${amount} tSAYN</strong>.</div>`;
+                }
+                return false;
+            }
 
             hideLoading();
             showLoading('Signing transaction...');
@@ -1897,18 +1950,18 @@
                 showToast(`Transaction sent!`, 'success');
 
                 const gasFee = txData.gasLimit * txData.gasPrice;
-                activeWallet.balance = (activeWallet.balance || 0) - baseAmount - gasFee;
-                activeWallet.transactions.push({
-                    type: 'TRANSFER',
-                    amount: -baseAmount,
-                    time: Date.now(),
-                    txId: txHash,
+                // NOTE: /broadcast already debited the balance in localStorage.
+                // Just sync activeWallet.balance to match localStorage to prevent double-deduct.
+                activeWallet.balance = getWalletBalance(activeWallet.address) || Math.max(0, (activeWallet.balance || 0) - baseAmount - gasFee);
+                const stx = {
+                    id: txHash, type: 'TRANSFER', amount: -baseAmount,
+                    time: Date.now(), timestamp: Date.now(), txId: txHash,
                     blockNumber: currentBlock,
-                    gasPrice: txData.gasPrice,
-                    gasLimit: txData.gasLimit,
-                    data: { from: activeWallet.address, to, amount: baseAmount },
-                    pending: true
-                });
+                    gasPrice: txData.gasPrice, gasLimit: txData.gasLimit,
+                    data: { from: activeWallet.address, to, amount: baseAmount }, pending: true
+                };
+                activeWallet.transactions.push(stx);
+                addWalletTx(activeWallet.address, stx);
                 saveState();
 
                 setTimeout(() => {
