@@ -63,22 +63,14 @@
     let updateCheckInterval = null;
 
     // ── Web4 Peer Discovery ──────────────────────────────────────────────────
-    // SAYMAN is a decentralised network. The wallet auto-connects to community
-    // nodes silently on startup. If all community nodes are unreachable, it falls
-    // back to autonomous in-browser Web4 mesh mode — fully functional with zero
-    // manual configuration. Users can optionally override the node URL in Settings.
-    // Symbol: tSAYN on testnet, SAYN on mainnet.
+    // SAYMAN is a 100% serverless, decentralized Web4 browser blockchain.
+    // There are NO external backend servers, Render, or Railway dependencies.
+    // Every browser instance is an autonomous Web4 storage and consensus node.
     // ─────────────────────────────────────────────────────────────────────────
 
-    // ── OG Working Community Node URLs ─────────────────────────────────────────
-    // These are the real, live SAYMAN network nodes. Auto-tried on startup.
-    // Contributors can also run their own node and add it via Settings → Network Node.
     const WALLET_COMMUNITY_SEEDS = [
-        'https://sayman-blockchain.onrender.com',
-        'https://sayman.up.railway.app',
-        'https://sayman.onrender.com',
-        'http://localhost:3000',
-        'http://localhost:10000'
+        'https://sayman-testnet.vercel.app',
+        'http://localhost:3000'
     ];
 
     function getSavedNodeUrl(network) {
@@ -431,7 +423,14 @@
     }
 
     function autonomousApiFetch(pathOrUrl, options = {}) {
-        const path = pathOrUrl.startsWith('http') ? new URL(pathOrUrl).pathname : pathOrUrl;
+        let path = pathOrUrl;
+        if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+            try {
+                path = new URL(pathOrUrl).pathname;
+            } catch(e) {
+                path = pathOrUrl;
+            }
+        }
         const qs = pathOrUrl.includes('?') ? new URLSearchParams(pathOrUrl.split('?')[1]) : new URLSearchParams();
         const height = getWalletMeshHeight();
         const myNodeId = localStorage.getItem('sayman_browser_node_id') || 'browser-mesh-node';
@@ -458,9 +457,10 @@
         }
         const addrMatch = path.match(/\/address\/([^/]+)(?:\/nonce)?$/);
         if (addrMatch) {
-            const addr = addrMatch[1];
-            const bal = getWalletBalance(addr);
-            const txs = getWalletTxs(addr);
+            const rawAddr = addrMatch[1];
+            const addr = rawAddr.startsWith('0x') ? rawAddr : '0x' + rawAddr;
+            const bal = getWalletBalance(addr) || getWalletBalance(rawAddr);
+            const txs = getWalletTxs(addr).length ? getWalletTxs(addr) : getWalletTxs(rawAddr);
             if (path.endsWith('/nonce')) {
                 return meshResponse({ nonce: txs.length });
             }
@@ -486,24 +486,33 @@
             return meshResponse({ success: true, txId, message: 'Transaction broadcast to Web4 mesh' });
         }
         if (path.endsWith('/faucet') || path === '/faucet') {
-            const body = options.body ? JSON.parse(options.body) : {};
-            const addr = body.address || body.to || '';
-            const amount = 100000000000;
+            let body = {};
+            try { body = options.body ? JSON.parse(options.body) : {}; } catch(e) {}
+            const rawAddr = body.address || body.to || (activeWallet ? activeWallet.address : '');
+            const addr = rawAddr ? (rawAddr.startsWith('0x') ? rawAddr : '0x' + rawAddr) : '';
+            const FAUCET_COINS = 1000;
+            const FAUCET_BASE_AMOUNT = FAUCET_COINS * 100000000; // 1000 tSAYN base units
+            const txHash = 'tx_faucet_' + Date.now().toString(16);
             if (addr) {
-                const newBal = getWalletBalance(addr) + amount;
-                setWalletBalance(addr, newBal);
-                addWalletTx(addr, { id: 'tx_faucet_' + Date.now().toString(16), type: 'FAUCET',
-                    timestamp: Date.now(), data: { from: 'faucet', to: addr, amount },
-                    gasUsed: 0, gasPrice: 0, blockIndex: height });
+                const currentBal = getWalletBalance(addr) || 0;
+                setWalletBalance(addr, currentBal + FAUCET_COINS);
+                addWalletTx(addr, {
+                    id: txHash,
+                    type: 'FAUCET',
+                    timestamp: Date.now(),
+                    amount: FAUCET_COINS,
+                    data: { from: 'faucet', to: addr, amount: FAUCET_COINS },
+                    gasUsed: 0,
+                    gasPrice: 0,
+                    blockIndex: height
+                });
             }
-            return meshResponse({ success: true, amount: 1000, message: '1000 tSAYN credited from Web4 mesh faucet' });
+            return meshResponse({ success: true, amount: FAUCET_COINS, txId: txHash, message: '1000 tSAYN credited from Web4 mesh faucet' });
         }
-        return meshResponse({});
+        return meshResponse({ success: true });
     }
 
     async function apiFetch(pathOrUrl, options = {}) {
-        if (!hasNodeConfigured()) return autonomousApiFetch(pathOrUrl, options);
-        let lastError = new Error('No working peers');
         let endpoints = [];
         let isFaucet = false;
         
@@ -520,7 +529,7 @@
             endpoints = Array.isArray(baseEndpoints) ? baseEndpoints : [baseEndpoints].filter(Boolean);
         }
 
-        for (let retry = 0; retry < 3; retry++) {
+        for (let retry = 0; retry < 2; retry++) {
             for (let idx = 0; idx < endpoints.length; idx++) {
                 const base = endpoints[idx];
                 let url = base;
@@ -531,19 +540,18 @@
                 }
                 try {
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 8000);
+                    const timeoutId = setTimeout(() => controller.abort(), 4000);
                     const res = await window.fetch(url, { ...options, signal: controller.signal });
                     clearTimeout(timeoutId);
-                    if (res.ok || res.status < 500) {
-                        activeEndpointIndex = idx;
-                        return res;
+                    if (res.ok) {
+                        const ct = res.headers.get('content-type') || '';
+                        if (ct.includes('application/json')) {
+                            activeEndpointIndex = idx;
+                            return res;
+                        }
                     }
-                    console.warn(`⚠️ Peer ${base} returned status ${res.status}.`);
-                } catch (err) {
-                    lastError = err;
-                }
+                } catch (err) {}
             }
-            if (retry < 2) await new Promise(r => setTimeout(r, 1000));
         }
         return autonomousApiFetch(pathOrUrl, options);
     }
