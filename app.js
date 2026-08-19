@@ -68,10 +68,19 @@
     // Every browser instance is an autonomous Web4 storage and consensus node.
     // ─────────────────────────────────────────────────────────────────────────
 
-    const WALLET_COMMUNITY_SEEDS = [
-        'https://sayman-testnet.vercel.app',
-        'http://localhost:3000'
-    ];
+    // ── OG Working SAYMAN URLs (for display & linking only — NOT backend APIs)
+    // This is a 100% serverless, static Web4 app. No backend required.
+    // The wallet operates autonomously in-browser. Users can optionally
+    // point to a community-run SAYMAN node in Settings → Network Node.
+    const SAYMAN_URLS = {
+        explorer: 'https://sayman-testnet.vercel.app',
+        wallet:   'https://puky.vercel.app',
+        faucet:   'https://sayman-faucet-site.vercel.app',
+        docs:     'https://sayman-docs.vercel.app'
+    };
+    // No backend seeds — this is a 100% in-browser autonomous Web4 node.
+    // Every browser that opens the wallet IS the node. Zero server needed.
+    const WALLET_COMMUNITY_SEEDS = [];
 
     function getSavedNodeUrl(network) {
         const key = `sayman_node_${network}`;
@@ -602,45 +611,36 @@
 
     async function fetchNetworkConfig() {
         networkTicker = currentNetwork === 'mainnet' ? 'SAYN' : 'tSAYN';
-        setNetworkStatus('connecting');
-        try {
-            const res = await apiFetch('/network');
-            const data = await res.json();
-            if (data) {
-                if (data.decimals) networkDecimals = data.decimals;
-                if (data.minStake !== undefined) networkMinStake = data.minStake;
-                if (data.unstakeDelay !== undefined) UNSTAKE_LOCK_BLOCKS = data.unstakeDelay;
-            }
-            // Determine what we're actually connected to
-            const eps = networkEndpoints[currentNetwork] || [];
-            const activeEp = eps[activeEndpointIndex] || eps[0] || '';
-            const isSeeded = WALLET_COMMUNITY_SEEDS.some(s => activeEp.startsWith(s));
-            const isAutonomous = activeEp === '' || (data && data.peersCount === 1 && !isSeeded);
-            const dot = document.getElementById('networkStatusDot');
-            const text = document.getElementById('networkStatusText');
-            const badge = document.getElementById('nodeStatusBadge');
-            if (isAutonomous || !activeEp) {
-                if (dot) dot.style.background = '#10d98a';
-                if (text) text.innerText = 'Web4 Mesh Node';
-                if (badge) badge.innerHTML = '🟢 Connected · <strong>Web4 Autonomous Mesh Node</strong> (in-browser)';
-            } else {
-                const nodeBase = activeEp.replace(/\/api\/?$/, '');
-                setNetworkStatus('connected');
-                if (text) text.innerText = 'Community Node';
-                if (badge) badge.innerHTML = `🟢 Connected · <strong>${nodeBase}</strong>`;
-            }
-            updateDynamicNetworkUI();
-            _updateNodeUrlInputDisplay();
-        } catch (e) {
-            networkDecimals = 100000000;
-            networkMinStake = 1000000000;
-            setNetworkStatus('connected');
-            updateDynamicNetworkUI();
-            const text = document.getElementById('networkStatusText');
-            if (text) text.innerText = 'Web4 Mesh Node';
-            const badge = document.getElementById('nodeStatusBadge');
-            if (badge) badge.innerHTML = '🟢 Connected · <strong>Web4 Autonomous Mesh Node</strong> (in-browser)';
-            _updateNodeUrlInputDisplay();
+        // This is a 100% in-browser autonomous Web4 node — no external API call needed.
+        // Go straight to autonomous connected state immediately.
+        networkDecimals = 100000000;
+        networkMinStake = 1000000000;
+        updateDynamicNetworkUI();
+        // Update UI immediately — green, connected, no spinner
+        const dot  = document.getElementById('networkStatusDot');
+        const text = document.getElementById('networkStatusText');
+        const badge = document.getElementById('nodeStatusBadge');
+        if (dot)   { dot.style.background = '#10d98a'; }
+        if (text)  { text.innerText = 'Web4 Mesh Node'; }
+        if (badge) { badge.innerHTML = '🟢 Connected · <strong>Web4 Autonomous Mesh Node</strong> — Every browser is a node'; }
+        _updateNodeUrlInputDisplay();
+        // If user has manually saved a custom node URL, try to reach it in background
+        const savedUrl = getSavedNodeUrl(currentNetwork);
+        if (savedUrl) {
+            try {
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 4000);
+                const res = await window.fetch(savedUrl.replace(/\/$/, '') + '/api/network', { signal: controller.signal });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.decimals)      networkDecimals = data.decimals;
+                    if (data.minStake)      networkMinStake = data.minStake;
+                    if (data.unstakeDelay)  UNSTAKE_LOCK_BLOCKS = data.unstakeDelay;
+                    updateDynamicNetworkUI();
+                    if (text)  text.innerText = 'Community Node';
+                    if (badge) badge.innerHTML = `🟢 Connected · <strong>${savedUrl}</strong>`;
+                }
+            } catch (_) { /* stay in autonomous mode */ }
         }
     }
 
